@@ -34,7 +34,7 @@ public class CodePushUpdateManager {
     }
 
     public void setAssetsBundleFileName(String assetsBundleFileName) {
-        mAssetsBundleFileName = assetsBundleFileName
+        mAssetsBundleFileName = assetsBundleFileName;
     }
 
     public String getAssetsBundleFileName() {
