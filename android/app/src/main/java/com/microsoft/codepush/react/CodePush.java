@@ -23,11 +23,11 @@ import java.util.List;
 
 public class CodePush implements ReactPackage {
 
-    private static boolean sIsRunningBinaryVersion = false;
-    private static boolean sNeedToReportRollback = false;
     private static boolean sTestConfigurationFlag = false;
     private static String sAppVersion = null;
 
+    private boolean sIsRunningBinaryVersion = false;
+    private boolean sNeedToReportRollback = false;
     private boolean mDidUpdate = false;
 
     private String mAssetsBundleFileName;
@@ -46,8 +46,9 @@ public class CodePush implements ReactPackage {
 
     private static String mPublicKey;
 
-    private static ReactInstanceHolder mReactInstanceHolder;
-    private static CodePush mCurrentInstance;
+    private ReactInstanceHolder mReactInstanceHolder;
+    private ReactInstanceManager mReactInstanceManager;
+    private CodePush mCurrentInstance;
 
     public CodePush(String deploymentKey, Context context) {
         this(deploymentKey, context, false);
@@ -180,12 +181,12 @@ public class CodePush implements ReactPackage {
     }
 
     @Deprecated
-    public static String getBundleUrl() {
+    public String getBundleUrl() {
         return getJSBundleFile();
     }
 
     @Deprecated
-    public static String getBundleUrl(String assetsBundleFileName) {
+    public String getBundleUrl(String assetsBundleFileName) {
         return getJSBundleFile(assetsBundleFileName);
     }
 
@@ -197,11 +198,11 @@ public class CodePush implements ReactPackage {
         return mDeploymentKey;
     }
 
-    public static String getJSBundleFile() {
-        return CodePush.getJSBundleFile(CodePushConstants.DEFAULT_JS_BUNDLE_NAME);
+    public String getJSBundleFile() {
+        return getJSBundleFile(CodePushConstants.DEFAULT_JS_BUNDLE_NAME);
     }
 
-    public static String getJSBundleFile(String assetsBundleFileName) {
+    public String getJSBundleFile(String assetsBundleFileName) {
         if (mCurrentInstance == null) {
             throw new CodePushNotInitializedException("A CodePush instance has not been created yet. Have you added it to your app's list of ReactPackages?");
         }
@@ -211,6 +212,7 @@ public class CodePush implements ReactPackage {
 
     public String getJSBundleFileInternal(String assetsBundleFileName) {
         this.mAssetsBundleFileName = assetsBundleFileName;
+        mUpdateManager.setAssetsBundleFileName(assetsBundleFileName);
         String binaryJsBundleUrl = CodePushConstants.ASSETS_BUNDLE_PREFIX + assetsBundleFileName;
 
         String packageFilePath = mUpdateManager.getCurrentPackageBundlePath(this.mAssetsBundleFileName);
@@ -331,7 +333,7 @@ public class CodePush implements ReactPackage {
     }
 
     public void setNeedToReportRollback(boolean needToReportRollback) {
-        CodePush.sNeedToReportRollback = needToReportRollback;
+        sNeedToReportRollback = needToReportRollback;
     }
 
     /* The below 3 methods are used for running tests.*/
@@ -353,15 +355,22 @@ public class CodePush implements ReactPackage {
         mSettingsManager.removeFailedUpdates();
     }
 
-    public static void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
+    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
         mReactInstanceHolder = reactInstanceHolder;
     }
 
-    static ReactInstanceManager getReactInstanceManager() {
+    public ReactInstanceManager getReactInstanceManager() {
+        if (mReactInstanceManager != null) {
+            return  mReactInstanceManager;
+        }
         if (mReactInstanceHolder == null) {
             return null;
         }
         return mReactInstanceHolder.getReactInstanceManager();
+    }
+
+    public void setReactInstanceManager(ReactInstanceManager reactInstanceManager) {
+        mReactInstanceManager = reactInstanceManager;
     }
 
     @Override

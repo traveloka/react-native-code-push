@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 public class CodePushUpdateManager {
 
     private String mDocumentsDirectory;
+    private String mAssetsBundleFileName;
 
     public CodePushUpdateManager(String documentsDirectory) {
         mDocumentsDirectory = documentsDirectory;
@@ -32,6 +33,14 @@ public class CodePushUpdateManager {
         return mDocumentsDirectory;
     }
 
+    public void setAssetsBundleFileName(String assetsBundleFileName) {
+        mAssetsBundleFileName = assetsBundleFileName
+    }
+
+    public String getAssetsBundleFileName() {
+        return mAssetsBundleFileName;
+    }
+
     private String getCodePushPath() {
         String codePushPath = CodePushUtils.appendPathComponent(getDocumentsDirectory(), CodePushConstants.CODE_PUSH_FOLDER_PREFIX);
         if (CodePush.isUsingTestConfiguration()) {
@@ -42,7 +51,8 @@ public class CodePushUpdateManager {
     }
 
     private String getStatusFilePath() {
-        return CodePushUtils.appendPathComponent(getCodePushPath(), CodePushConstants.STATUS_FILE);
+        String appendPathComponent = getAssetsBundleFileName() + "." + CodePushConstants.STATUS_FILE;
+        return CodePushUtils.appendPathComponent(getCodePushPath(), appendPathComponent);
     }
 
     public JSONObject getCurrentPackageInfo() {
