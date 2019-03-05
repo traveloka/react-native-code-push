@@ -31,9 +31,17 @@
     long long _latestExpectedContentLength;
     long long _latestReceivedConentLength;
     BOOL _didUpdateProgress;
+    
+    CodePushConfig *codePushConfig;
+    CodePushPackage *codePushPackage;
+    
+    // These values are used to save the NS bundle, name, extension and subdirectory
+    // for the JS bundle in the binary.
+    NSBundle *bundleResourceBundle;
+    NSString *bundleResourceExtension;
+    NSString *bundleResourceName;
+    NSString *bundleResourceSubdirectory;
 }
-
-RCT_EXPORT_MODULE()
 
 #pragma mark - Private constants
 
@@ -66,38 +74,36 @@ static BOOL isRunningBinaryVersion = NO;
 static BOOL needToReportRollback = NO;
 static BOOL testConfigurationFlag = NO;
 
-// These values are used to save the NS bundle, name, extension and subdirectory
-// for the JS bundle in the binary.
-static NSBundle *bundleResourceBundle = nil;
-static NSString *bundleResourceExtension = @"jsbundle";
-static NSString *bundleResourceName = @"main";
-static NSString *bundleResourceSubdirectory = nil;
-
 // These keys represent the names we use to store information about the latest rollback
 static NSString *const LatestRollbackInfoKey = @"LATEST_ROLLBACK_INFO";
 static NSString *const LatestRollbackPackageHashKey = @"packageHash";
 static NSString *const LatestRollbackTimeKey = @"time";
 static NSString *const LatestRollbackCountKey = @"count";
 
-+ (void)initialize
+- (instancetype)initWithConfig:(NSDictionary *)config
 {
-    [super initialize];
-    if (self == [CodePush class]) {
+    if (self = [self init]) {
+        CPLog(@"initWithConfig: %@", config);
+        
         // Use the mainBundle by default.
         bundleResourceBundle = [NSBundle mainBundle];
+        
+        NSString *deploymentKey = [config objectForKey:@"deploymentKey"];
+        codePushConfig = [[CodePushConfig alloc] initWithDeploymentKey:deploymentKey];
     }
+    return self;
 }
 
 #pragma mark - Public Obj-C API
 
-+ (NSURL *)binaryBundleURL
+- (NSURL *)binaryBundleURL
 {
     return [bundleResourceBundle URLForResource:bundleResourceName
                                   withExtension:bundleResourceExtension
                                    subdirectory:bundleResourceSubdirectory];
 }
 
-+ (NSString *)bundleAssetsPath
+- (NSString *)bundleAssetsPath
 {
     NSString *resourcePath = [bundleResourceBundle resourcePath];
     if (bundleResourceSubdirectory) {
@@ -107,7 +113,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     return [resourcePath stringByAppendingPathComponent:[CodePushUpdateUtils assetsFolderName]];
 }
 
-+ (NSURL *)bundleURL
+- (NSURL *)bundleURL
 {
     return [self bundleURLForResource:bundleResourceName
                         withExtension:bundleResourceExtension
@@ -115,7 +121,7 @@ static NSString *const LatestRollbackCountKey = @"count";
                                bundle:bundleResourceBundle];
 }
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
 {
     return [self bundleURLForResource:resourceName
                         withExtension:bundleResourceExtension
@@ -123,7 +129,7 @@ static NSString *const LatestRollbackCountKey = @"count";
                                bundle:bundleResourceBundle];
 }
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
                   withExtension:(NSString *)resourceExtension
 {
     return [self bundleURLForResource:resourceName
@@ -132,7 +138,7 @@ static NSString *const LatestRollbackCountKey = @"count";
                                bundle:bundleResourceBundle];
 }
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
                   withExtension:(NSString *)resourceExtension
                    subdirectory:(NSString *)resourceSubdirectory
 {
@@ -142,7 +148,7 @@ static NSString *const LatestRollbackCountKey = @"count";
                                bundle:bundleResourceBundle];
 }
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
                   withExtension:(NSString *)resourceExtension
                    subdirectory:(NSString *)resourceSubdirectory
                          bundle:(NSBundle *)resourceBundle
@@ -152,12 +158,13 @@ static NSString *const LatestRollbackCountKey = @"count";
     bundleResourceSubdirectory = resourceSubdirectory;
     bundleResourceBundle = resourceBundle;
 
+    codePushPackage = [[CodePushPackage alloc] initWithBundleName:bundleResourceName];
     [self ensureBinaryBundleExists];
 
     NSString *logMessageFormat = @"Loading JS bundle from %@";
 
     NSError *error;
-    NSString *packageFile = [CodePushPackage getCurrentPackageBundlePath:&error];
+    NSString *packageFile = [codePushPackage getCurrentPackageBundlePath:&error];
     NSURL *binaryBundleURL = [self binaryBundleURL];
 
     if (error || !packageFile) {
@@ -166,8 +173,8 @@ static NSString *const LatestRollbackCountKey = @"count";
         return binaryBundleURL;
     }
 
-    NSString *binaryAppVersion = [[CodePushConfig current] appVersion];
-    NSDictionary *currentPackageMetadata = [CodePushPackage getCurrentPackage:&error];
+    NSString *binaryAppVersion = [codePushConfig appVersion];
+    NSDictionary *currentPackageMetadata = [codePushPackage getCurrentPackage:&error];
     if (error || !currentPackageMetadata) {
         CPLog(logMessageFormat, binaryBundleURL);
         isRunningBinaryVersion = YES;
@@ -190,7 +197,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 #endif
 
         if (isRelease || ![binaryAppVersion isEqualToString:packageAppVersion]) {
-            [CodePush clearUpdates];
+            [self clearUpdatesInternal];
         }
 
         CPLog(logMessageFormat, binaryBundleURL);
@@ -205,22 +212,22 @@ static NSString *const LatestRollbackCountKey = @"count";
     return applicationSupportDirectory;
 }
 
-+ (void)overrideAppVersion:(NSString *)appVersion
+- (void)overrideAppVersion:(NSString *)appVersion
 {
-    [CodePushConfig current].appVersion = appVersion;
+    codePushConfig.appVersion = appVersion;
 }
 
-+ (void)setDeploymentKey:(NSString *)deploymentKey
+- (void)setDeploymentKey:(NSString *)deploymentKey
 {
-    [CodePushConfig current].deploymentKey = deploymentKey;
+    codePushConfig.deploymentKey = deploymentKey;
 }
 
 /*
  * WARNING: This cleans up all downloaded and pending updates.
  */
-+ (void)clearUpdates
+- (void)clearUpdatesInternal
 {
-    [CodePushPackage clearUpdates];
+    [codePushPackage clearUpdates];
     [self removePendingUpdate];
     [self removeFailedUpdates];
 }
@@ -274,12 +281,12 @@ static NSString *const LatestRollbackCountKey = @"count";
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
             NSError *error;
-            NSString *binaryAppVersion = [[CodePushConfig current] appVersion];
-            NSDictionary *currentPackageMetadata = [CodePushPackage getCurrentPackage:&error];
+            NSString *binaryAppVersion = [codePushConfig appVersion];
+            NSDictionary *currentPackageMetadata = [codePushPackage getCurrentPackage:&error];
             if (currentPackageMetadata) {
                 NSString *packageAppVersion = [currentPackageMetadata objectForKey:AppVersionKey];
                 if (![binaryAppVersion isEqualToString:packageAppVersion]) {
-                    [CodePush clearUpdates];
+                    [self clearUpdatesInternal];
                 }
             }
         }
@@ -335,7 +342,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This method ensures that the app was packaged with a JS bundle
  * file, and if not, it throws the appropriate exception.
  */
-+ (void)ensureBinaryBundleExists
+- (void)ensureBinaryBundleExists
 {
     if (![self binaryBundleURL]) {
         NSString *errorMessage;
@@ -530,7 +537,7 @@ static NSString *const LatestRollbackCountKey = @"count";
         // file (since Chrome wouldn't support it). Otherwise, update
         // the current bundle URL to point at the latest update
         if ([CodePush isUsingTestConfiguration] || ![super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
-            [super.bridge setValue:[CodePush bundleURL] forKey:@"bundleURL"];
+            [super.bridge setValue:[self bundleURL] forKey:@"bundleURL"];
         }
 
         [super.bridge reload];
@@ -547,7 +554,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (void)rollbackPackage
 {
     NSError *error;
-    NSDictionary *failedPackage = [CodePushPackage getCurrentPackage:&error];
+    NSDictionary *failedPackage = [codePushPackage getCurrentPackage:&error];
     if (!failedPackage) {
         if (error) {
             CPLog(@"Error getting current update metadata during rollback: %@", error);
@@ -560,8 +567,8 @@ static NSString *const LatestRollbackCountKey = @"count";
     }
 
     // Rollback to the previous version and de-register the new update
-    [CodePushPackage rollbackPackage];
-    [CodePush removePendingUpdate];
+    [codePushPackage rollbackPackage];
+    [self removePendingUpdate];
     [self loadBundle];
 }
 
@@ -595,7 +602,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This method is used to clear away failed updates in the event that
  * a new app store binary is installed.
  */
-+ (void)removeFailedUpdates
+- (void)removeFailedUpdates
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     [preferences removeObjectForKey:FailedUpdatesKey];
@@ -606,7 +613,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This method is used to register the fact that a pending
  * update succeeded and therefore can be removed.
  */
-+ (void)removePendingUpdate
+- (void)removePendingUpdate
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     [preferences removeObjectForKey:PendingUpdateKey];
@@ -688,7 +695,7 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
                         rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSDictionary *mutableUpdatePackage = [updatePackage mutableCopy];
-    NSURL *binaryBundleURL = [CodePush binaryBundleURL];
+    NSURL *binaryBundleURL = [self binaryBundleURL];
     if (binaryBundleURL != nil) {
         [mutableUpdatePackage setValue:[CodePushUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL]
                                 forKey:BinaryBundleDateKey];
@@ -701,12 +708,13 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
         self.paused = NO;
     }
 
-    NSString * publicKey = [[CodePushConfig current] publicKey];
+    NSString * publicKey = [codePushConfig publicKey];
 
-    [CodePushPackage
+    [codePushPackage
         downloadPackage:mutableUpdatePackage
         expectedBundleFileName:[bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]
         publicKey:publicKey
+        codePush:self
         operationQueue:_methodQueue
         // The download is progressing forward
         progressCallback:^(long long expectedContentLength, long long receivedContentLength) {
@@ -726,7 +734,7 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
         // The download completed
         doneCallback:^{
             NSError *err;
-            NSDictionary *newPackage = [CodePushPackage getPackage:mutableUpdatePackage[PackageHashKey] error:&err];
+            NSDictionary *newPackage = [codePushPackage getPackage:mutableUpdatePackage[PackageHashKey] error:&err];
 
             if (err) {
                 return reject([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
@@ -755,11 +763,11 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
 RCT_EXPORT_METHOD(getConfiguration:(RCTPromiseResolveBlock)resolve
                           rejecter:(RCTPromiseRejectBlock)reject)
 {
-    NSDictionary *configuration = [[CodePushConfig current] configuration];
+    NSDictionary *configuration = [codePushConfig configuration];
     NSError *error;
     if (isRunningBinaryVersion) {
         // isRunningBinaryVersion will not get set to "YES" if running against the packager.
-        NSString *binaryHash = [CodePushUpdateUtils getHashForBinaryContents:[CodePush binaryBundleURL] error:&error];
+        NSString *binaryHash = [CodePushUpdateUtils getHashForBinaryContents:[self binaryBundleURL] codePush:self error:&error];
         if (error) {
             CPLog(@"Error obtaining hash for binary contents: %@", error);
             resolve(configuration);
@@ -791,7 +799,7 @@ RCT_EXPORT_METHOD(getUpdateMetadata:(CodePushUpdateState)updateState
                            rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSError *error;
-    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:&error] mutableCopy];
+    NSMutableDictionary *package = [[codePushPackage getCurrentPackage:&error] mutableCopy];
 
     if (error) {
         return reject([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
@@ -812,7 +820,7 @@ RCT_EXPORT_METHOD(getUpdateMetadata:(CodePushUpdateState)updateState
     } else if (updateState == CodePushUpdateStateRunning && currentUpdateIsPending) {
         // The caller wants the running update, but the current
         // one is pending, so we need to grab the previous.
-        resolve([CodePushPackage getPreviousPackage:&error]);
+        resolve([codePushPackage getPreviousPackage:&error]);
     } else {
         // The current package satisfies the request:
         // 1) Caller wanted a pending, and there is a pending update
@@ -841,7 +849,7 @@ RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
                        rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSError *error;
-    [CodePushPackage installPackage:updatePackage
+    [codePushPackage installPackage:updatePackage
                 removePendingUpdate:[[self class] isPendingUpdate:nil]
                               error:&error];
 
@@ -917,7 +925,7 @@ RCT_EXPORT_METHOD(isFirstRun:(NSString *)packageHash
     BOOL isFirstRun = _isFirstRunAfterUpdate
                         && nil != packageHash
                         && [packageHash length] > 0
-                        && [packageHash isEqualToString:[CodePushPackage getCurrentPackageHash:&error]];
+                        && [packageHash isEqualToString:[codePushPackage getCurrentPackageHash:&error]];
 
     resolve(@(isFirstRun));
 }
@@ -928,7 +936,7 @@ RCT_EXPORT_METHOD(isFirstRun:(NSString *)packageHash
 RCT_EXPORT_METHOD(notifyApplicationReady:(RCTPromiseResolveBlock)resolve
                                 rejecter:(RCTPromiseRejectBlock)reject)
 {
-    [CodePush removePendingUpdate];
+    [self removePendingUpdate];
     resolve(nil);
 }
 
@@ -958,7 +966,7 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
  */
 RCT_EXPORT_METHOD(clearUpdates) {
     CPLog(@"Clearing updates.");
-    [CodePush clearUpdates];
+    [self clearUpdatesInternal];
 }
 
 #pragma mark - JavaScript-exported module methods (Private)
@@ -972,7 +980,7 @@ RCT_EXPORT_METHOD(clearUpdates) {
 RCT_EXPORT_METHOD(downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl)
 {
     if ([CodePush isUsingTestConfiguration]) {
-        [CodePushPackage downloadAndReplaceCurrentBundle:remoteBundleUrl];
+        [codePushPackage downloadAndReplaceCurrentBundle:remoteBundleUrl];
     }
 }
 
@@ -996,7 +1004,7 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
         }
     } else if (_isFirstRunAfterUpdate) {
         NSError *error;
-        NSDictionary *currentPackage = [CodePushPackage getCurrentPackage:&error];
+        NSDictionary *currentPackage = [codePushPackage getCurrentPackage:&error];
         if (!error && currentPackage) {
             resolve([CodePushTelemetryManager getUpdateReport:currentPackage]);
             return;

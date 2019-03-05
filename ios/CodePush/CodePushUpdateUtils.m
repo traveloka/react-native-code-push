@@ -196,6 +196,7 @@ NSString * const IgnoreCodePushMetadata = @".codepushrelease";
 }
 
 + (NSString *)getHashForBinaryContents:(NSURL *)binaryBundleUrl
+                              codePush:(CodePush *)codePush
                                  error:(NSError **)error
 {
     // Get the cached hash from user preferences if it exists.
@@ -218,7 +219,7 @@ NSString * const IgnoreCodePushMetadata = @".codepushrelease";
     
     // If the app is using assets, then add
     // them to the generated content manifest.
-    NSString *assetsPath = [CodePush bundleAssetsPath];
+    NSString *assetsPath = [codePush bundleAssetsPath];
     if ([[NSFileManager defaultManager] fileExistsAtPath:assetsPath]) {
         
         BOOL result = [self addContentsOfFolderToManifest:assetsPath

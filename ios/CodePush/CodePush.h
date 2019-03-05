@@ -10,7 +10,9 @@
 
 @interface CodePush : RCTEventEmitter
 
-+ (NSURL *)binaryBundleURL;
+- (instancetype)initWithConfig:(NSDictionary *)config;
+
+- (NSURL *)binaryBundleURL;
 /*
  * This method is used to retrieve the URL for the most recent
  * version of the JavaScript bundle. This could be either the
@@ -22,39 +24,39 @@
  * and therefore, if it isn't, you should use either the bundleURLForResource:
  * or bundleURLForResource:withExtension: methods to override that behavior.
  */
-+ (NSURL *)bundleURL;
+- (NSURL *)bundleURL;
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName;
+- (NSURL *)bundleURLForResource:(NSString *)resourceName;
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
                   withExtension:(NSString *)resourceExtension;
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
                   withExtension:(NSString *)resourceExtension
                    subdirectory:(NSString *)resourceSubdirectory;
 
-+ (NSURL *)bundleURLForResource:(NSString *)resourceName
+- (NSURL *)bundleURLForResource:(NSString *)resourceName
                   withExtension:(NSString *)resourceExtension
                    subdirectory:(NSString *)resourceSubdirectory
                          bundle:(NSBundle *)resourceBundle;
 
 + (NSString *)getApplicationSupportDirectory;
 
-+ (NSString *)bundleAssetsPath;
+- (NSString *)bundleAssetsPath;
 
 /*
  * This method allows the version of the app's binary interface
  * to be specified, which would otherwise default to the
  * App Store version of the app.
  */
-+ (void)overrideAppVersion:(NSString *)appVersion;
+- (void)overrideAppVersion:(NSString *)appVersion;
 
 /*
  * This method allows dynamically setting the app's
  * deployment key, in addition to setting it via
  * the Info.plist file's CodePushDeploymentKey setting.
  */
-+ (void)setDeploymentKey:(NSString *)deploymentKey;
+- (void)setDeploymentKey:(NSString *)deploymentKey;
 
 /*
  * This method checks to see whether a specific package hash
@@ -91,12 +93,13 @@
 // The below methods are only used during tests.
 + (BOOL)isUsingTestConfiguration;
 + (void)setUsingTestConfiguration:(BOOL)shouldUseTestConfiguration;
-+ (void)clearUpdates;
+- (void)clearUpdatesInternal;
 
 @end
 
 @interface CodePushConfig : NSObject
 
+- (instancetype)initWithDeploymentKey:(NSString *)deploymentKey;
 @property (copy) NSString *appVersion;
 @property (readonly) NSString *buildVersion;
 @property (readonly) NSDictionary *configuration;
@@ -138,34 +141,37 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 @interface CodePushPackage : NSObject
 
-+ (void)downloadPackage:(NSDictionary *)updatePackage
+- (instancetype)initWithBundleName:(NSString *)_bundleName;
+
+- (void)downloadPackage:(NSDictionary *)updatePackage
  expectedBundleFileName:(NSString *)expectedBundleFileName
               publicKey:(NSString *)publicKey
+               codePush:(CodePush *)codePush
          operationQueue:(dispatch_queue_t)operationQueue
        progressCallback:(void (^)(long long, long long))progressCallback
            doneCallback:(void (^)())doneCallback
            failCallback:(void (^)(NSError *err))failCallback;
 
-+ (NSDictionary *)getCurrentPackage:(NSError **)error;
-+ (NSDictionary *)getPreviousPackage:(NSError **)error;
-+ (NSString *)getCurrentPackageFolderPath:(NSError **)error;
-+ (NSString *)getCurrentPackageBundlePath:(NSError **)error;
-+ (NSString *)getCurrentPackageHash:(NSError **)error;
+- (NSDictionary *)getCurrentPackage:(NSError **)error;
+- (NSDictionary *)getPreviousPackage:(NSError **)error;
+- (NSString *)getCurrentPackageFolderPath:(NSError **)error;
+- (NSString *)getCurrentPackageBundlePath:(NSError **)error;
+- (NSString *)getCurrentPackageHash:(NSError **)error;
 
-+ (NSDictionary *)getPackage:(NSString *)packageHash
+- (NSDictionary *)getPackage:(NSString *)packageHash
                        error:(NSError **)error;
 
-+ (NSString *)getPackageFolderPath:(NSString *)packageHash;
+- (NSString *)getPackageFolderPath:(NSString *)packageHash;
 
-+ (BOOL)installPackage:(NSDictionary *)updatePackage
+- (BOOL)installPackage:(NSDictionary *)updatePackage
    removePendingUpdate:(BOOL)removePendingUpdate
                  error:(NSError **)error;
 
-+ (void)rollbackPackage;
+- (void)rollbackPackage;
 
 // The below methods are only used during tests.
-+ (void)clearUpdates;
-+ (void)downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl;
+- (void)clearUpdates;
+- (void)downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl;
 
 @end
 
@@ -192,6 +198,7 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 + (NSString *)assetsFolderName;
 + (NSString *)getHashForBinaryContents:(NSURL *)binaryBundleUrl
+                              codePush:(CodePush *)codePush
                                  error:(NSError **)error;
 
 + (NSString *)manifestFolderPrefix;
