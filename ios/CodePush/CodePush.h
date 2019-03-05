@@ -62,7 +62,7 @@
  * This method checks to see whether a specific package hash
  * has previously failed installation.
  */
-+ (BOOL)isFailedHash:(NSString*)packageHash;
+- (BOOL)isFailedHash:(NSString*)packageHash;
 
 
 /*
@@ -70,25 +70,25 @@
  * This information will be used to decide whether the application
  * should ignore the update or not.
  */
-+ (NSDictionary*)getRollbackInfo;
+- (NSDictionary*)getRollbackInfo;
 /*
  * This method is used to save information about the latest rollback.
  * This information will be used to decide whether the application
  * should ignore the update or not.
  */
-+ (void)setLatestRollbackInfo:(NSString*)packageHash;
+- (void)setLatestRollbackInfo:(NSString*)packageHash;
 /*
  * This method is used to get the count of rollback for the package
  * using the latest rollback information.
  */
-+ (int)getRollbackCountForPackage:(NSString*) packageHash fromLatestRollbackInfo:(NSMutableDictionary*) latestRollbackInfo;
+- (int)getRollbackCountForPackage:(NSString*) packageHash fromLatestRollbackInfo:(NSMutableDictionary*) latestRollbackInfo;
 
 /*
  * This method checks to see whether a specific package hash
  * represents a downloaded and installed update, that hasn't
  * been applied yet via an app restart.
  */
-+ (BOOL)isPendingUpdate:(NSString*)packageHash;
+- (BOOL)isPendingUpdate:(NSString*)packageHash;
 
 // The below methods are only used during tests.
 + (BOOL)isUsingTestConfiguration;

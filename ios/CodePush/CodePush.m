@@ -41,6 +41,9 @@
     NSString *bundleResourceExtension;
     NSString *bundleResourceName;
     NSString *bundleResourceSubdirectory;
+    
+    BOOL isRunningBinaryVersion;
+    BOOL needToReportRollback;
 }
 
 #pragma mark - Private constants
@@ -70,8 +73,6 @@ static NSString *const PackageIsPendingKey = @"isPending";
 
 #pragma mark - Static variables
 
-static BOOL isRunningBinaryVersion = NO;
-static BOOL needToReportRollback = NO;
 static BOOL testConfigurationFlag = NO;
 
 // These keys represent the names we use to store information about the latest rollback
@@ -87,6 +88,9 @@ static NSString *const LatestRollbackCountKey = @"count";
         
         // Use the mainBundle by default.
         bundleResourceBundle = [NSBundle mainBundle];
+        
+        isRunningBinaryVersion = NO;
+        needToReportRollback = NO;
         
         NSString *deploymentKey = [config objectForKey:@"deploymentKey"];
         codePushConfig = [[CodePushConfig alloc] initWithDeploymentKey:deploymentKey];
@@ -421,7 +425,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This information will be used to decide whether the application
  * should ignore the update or not.
  */
-+ (NSDictionary *)getLatestRollbackInfo
+- (NSDictionary *)getLatestRollbackInfo
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     NSDictionary *latestRollbackInfo = [preferences objectForKey:LatestRollbackInfoKey];
@@ -433,7 +437,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This information will be used to decide whether the application
  * should ignore the update or not.
  */
-+ (void)setLatestRollbackInfo:(NSString*)packageHash
+- (void)setLatestRollbackInfo:(NSString*)packageHash
 {
     if (packageHash == nil) {
         return;
@@ -463,7 +467,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This method is used to get the count of rollback for the package
  * using the latest rollback information.
  */
-+ (int)getRollbackCountForPackage:(NSString*) packageHash fromLatestRollbackInfo:(NSMutableDictionary*) latestRollbackInfo
+- (int)getRollbackCountForPackage:(NSString*) packageHash fromLatestRollbackInfo:(NSMutableDictionary*) latestRollbackInfo
 {
     NSString *oldPackageHash = [latestRollbackInfo objectForKey:LatestRollbackPackageHashKey];
     if ([packageHash isEqualToString: oldPackageHash]) {
@@ -478,7 +482,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * This method checks to see whether a specific package hash
  * has previously failed installation.
  */
-+ (BOOL)isFailedHash:(NSString*)packageHash
+- (BOOL)isFailedHash:(NSString*)packageHash
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
@@ -508,7 +512,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  * represents a downloaded and installed update, that hasn't
  * been applied yet via an app restart.
  */
-+ (BOOL)isPendingUpdate:(NSString*)packageHash
+- (BOOL)isPendingUpdate:(NSString*)packageHash
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     NSDictionary *pendingUpdate = [preferences objectForKey:PendingUpdateKey];
@@ -579,7 +583,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  */
 - (void)saveFailedUpdate:(NSDictionary *)failedPackage
 {
-    if ([[self class] isFailedHash:[failedPackage objectForKey:PackageHashKey]]) {
+    if ([self isFailedHash:[failedPackage objectForKey:PackageHashKey]]) {
         return;
     }
     
@@ -671,7 +675,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     // resumed, we can detect how long it was in the background.
     _lastResignedDate = [NSDate date];
 
-    if (_installMode == CodePushInstallModeOnNextSuspend && [[self class] isPendingUpdate:nil]) {
+    if (_installMode == CodePushInstallModeOnNextSuspend && [self isPendingUpdate:nil]) {
         _appSuspendTimer = [NSTimer scheduledTimerWithTimeInterval:_minimumBackgroundDuration
                                                          target:self
                                                        selector:@selector(loadBundleOnTick:)
@@ -811,7 +815,7 @@ RCT_EXPORT_METHOD(getUpdateMetadata:(CodePushUpdateState)updateState
     }
 
     // We have a CodePush update, so let's see if it's currently in a pending state.
-    BOOL currentUpdateIsPending = [[self class] isPendingUpdate:[package objectForKey:PackageHashKey]];
+    BOOL currentUpdateIsPending = [self isPendingUpdate:[package objectForKey:PackageHashKey]];
 
     if (updateState == CodePushUpdateStatePending && !currentUpdateIsPending) {
         // The caller wanted a pending update
@@ -850,7 +854,7 @@ RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
 {
     NSError *error;
     [codePushPackage installPackage:updatePackage
-                removePendingUpdate:[[self class] isPendingUpdate:nil]
+                removePendingUpdate:[self isPendingUpdate:nil]
                               error:&error];
 
     if (error) {
@@ -894,7 +898,7 @@ RCT_EXPORT_METHOD(isFailedUpdate:(NSString *)packageHash
                          resolve:(RCTPromiseResolveBlock)resolve
                           reject:(RCTPromiseRejectBlock)reject)
 {
-    BOOL isFailedHash = [[self class] isFailedHash:packageHash];
+    BOOL isFailedHash = [self isFailedHash:packageHash];
     resolve(@(isFailedHash));
 }
 
@@ -902,14 +906,14 @@ RCT_EXPORT_METHOD(setLatestRollbackInfo:(NSString *)packageHash
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 {
-    [[self class] setLatestRollbackInfo:packageHash];
+    [self setLatestRollbackInfo:packageHash];
 }
 
 
 RCT_EXPORT_METHOD(getLatestRollbackInfo:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
-    NSDictionary *latestRollbackInfo = [[self class] getLatestRollbackInfo];
+    NSDictionary *latestRollbackInfo = [self getLatestRollbackInfo];
     resolve(latestRollbackInfo);
 }
 
@@ -949,7 +953,7 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
 {
     // If this is an unconditional restart request, or there
     // is current pending update, then reload the app.
-    if (!onlyIfUpdateIsPending || [[self class] isPendingUpdate:nil]) {
+    if (!onlyIfUpdateIsPending || [self isPendingUpdate:nil]) {
         [self loadBundle];
         resolve(@(YES));
         return;
