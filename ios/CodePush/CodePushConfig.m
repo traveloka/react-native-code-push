@@ -61,6 +61,14 @@ static NSString * const PublicKeyKey = @"publicKey";
     return self;
 }
 
+- (instancetype)initWithDeploymentKey:(NSString *)deploymentKey
+{
+    if (self = [self init]) {
+        [_configDictionary setObject:deploymentKey forKey:DeploymentKeyConfigKey];
+    }
+    return self;
+}
+
 - (NSString *)appVersion
 {
     return [_configDictionary objectForKey:AppVersionConfigKey];

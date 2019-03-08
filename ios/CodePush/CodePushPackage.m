@@ -1,7 +1,9 @@
 #import "CodePush.h"
 #import "SSZipArchive.h"
 
-@implementation CodePushPackage
+@implementation CodePushPackage {
+    NSString *bundleName;
+}
 
 #pragma mark - Private constants
 
@@ -13,14 +15,22 @@ static NSString *const UpdateBundleFileName = @"app.jsbundle";
 static NSString *const UpdateMetadataFileName = @"app.json";
 static NSString *const UnzippedFolderName = @"unzipped";
 
+- (instancetype)initWithBundleName:(NSString *)_bundleName {
+    if (self = [self init]) {
+        bundleName = _bundleName;
+    }
+    
+    return self;
+}
+
 #pragma mark - Public methods
 
-+ (void)clearUpdates
+- (void)clearUpdates
 {
     [[NSFileManager defaultManager] removeItemAtPath:[self getCodePushPath] error:nil];
 }
 
-+ (void)downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl
+- (void)downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl
 {
     NSURL *urlRequest = [NSURL URLWithString:remoteBundleUrl];
     NSError *error = nil;
@@ -39,9 +49,10 @@ static NSString *const UnzippedFolderName = @"unzipped";
     }
 }
 
-+ (void)downloadPackage:(NSDictionary *)updatePackage
+- (void)downloadPackage:(NSDictionary *)updatePackage
  expectedBundleFileName:(NSString *)expectedBundleFileName
               publicKey:(NSString *)publicKey
+               codePush:(CodePush *)codePush
          operationQueue:(dispatch_queue_t)operationQueue
        progressCallback:(void (^)(long long, long long))progressCallback
            doneCallback:(void (^)())doneCallback
@@ -82,7 +93,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                 progressCallback:progressCallback
                                                 doneCallback:^(BOOL isZip) {
                                                     NSError *error = nil;
-                                                    NSString * unzippedFolderPath = [CodePushPackage getUnzippedFolderPath];
+                                                    NSString * unzippedFolderPath = [self getUnzippedFolderPath];
                                                     NSMutableDictionary * mutableUpdatePackage = [updatePackage mutableCopy];
                                                     if (isZip) {
                                                         if ([[NSFileManager defaultManager] fileExistsAtPath:unzippedFolderPath]) {
@@ -129,7 +140,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                                     return;
                                                                 }
                                                                 
-                                                                [[NSFileManager defaultManager] copyItemAtPath:[CodePush bundleAssetsPath]
+                                                                [[NSFileManager defaultManager] copyItemAtPath:[codePush bundleAssetsPath]
                                                                                                         toPath:[newUpdateCodePushPath stringByAppendingPathComponent:[CodePushUpdateUtils assetsFolderName]]
                                                                                                          error:&error];
                                                                 if (error) {
@@ -137,8 +148,8 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                                     return;
                                                                 }
                                                                 
-                                                                [[NSFileManager defaultManager] copyItemAtPath:[[CodePush binaryBundleURL] path]
-                                                                                                        toPath:[newUpdateCodePushPath stringByAppendingPathComponent:[[CodePush binaryBundleURL] lastPathComponent]]
+                                                                [[NSFileManager defaultManager] copyItemAtPath:[[codePush binaryBundleURL] path]
+                                                                                                        toPath:[newUpdateCodePushPath stringByAppendingPathComponent:[[codePush binaryBundleURL] lastPathComponent]]
                                                                                                          error:&error];
                                                                 if (error) {
                                                                     failCallback(error);
@@ -340,7 +351,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
     [downloadHandler download:updatePackage[@"downloadUrl"]];
 }
 
-+ (NSString *)getCodePushPath
+- (NSString *)getCodePushPath
 {
     NSString* codePushPath = [[CodePush getApplicationSupportDirectory] stringByAppendingPathComponent:@"CodePush"];
     if ([CodePush isUsingTestConfiguration]) {
@@ -350,17 +361,17 @@ static NSString *const UnzippedFolderName = @"unzipped";
     return codePushPath;
 }
 
-+ (NSDictionary *)getCurrentPackage:(NSError **)error
+- (NSDictionary *)getCurrentPackage:(NSError **)error
 {
-    NSString *packageHash = [CodePushPackage getCurrentPackageHash:error];
+    NSString *packageHash = [self getCurrentPackageHash:error];
     if (!packageHash) {
         return nil;
     }
 
-    return [CodePushPackage getPackage:packageHash error:error];
+    return [self getPackage:packageHash error:error];
 }
 
-+ (NSString *)getCurrentPackageBundlePath:(NSError **)error
+- (NSString *)getCurrentPackageBundlePath:(NSError **)error
 {
     NSString *packageFolder = [self getCurrentPackageFolderPath:error];
     
@@ -382,7 +393,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
     }
 }
 
-+ (NSString *)getCurrentPackageHash:(NSError **)error
+- (NSString *)getCurrentPackageHash:(NSError **)error
 {
     NSDictionary *info = [self getCurrentPackageInfo:error];
     if (!info) {
@@ -392,7 +403,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
     return info[@"currentPackage"];
 }
 
-+ (NSString *)getCurrentPackageFolderPath:(NSError **)error
+- (NSString *)getCurrentPackageFolderPath:(NSError **)error
 {
     NSDictionary *info = [self getCurrentPackageInfo:error];
     
@@ -409,7 +420,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
     return [self getPackageFolderPath:packageHash];
 }
 
-+ (NSMutableDictionary *)getCurrentPackageInfo:(NSError **)error
+- (NSMutableDictionary *)getCurrentPackageInfo:(NSError **)error
 {
     NSString *statusFilePath = [self getStatusFilePath];
     if (![[NSFileManager defaultManager] fileExistsAtPath:statusFilePath]) {
@@ -434,12 +445,12 @@ static NSString *const UnzippedFolderName = @"unzipped";
     return [json mutableCopy];
 }
 
-+ (NSString *)getDownloadFilePath
+- (NSString *)getDownloadFilePath
 {
     return [[self getCodePushPath] stringByAppendingPathComponent:DownloadFileName];
 }
 
-+ (NSDictionary *)getPackage:(NSString *)packageHash
+- (NSDictionary *)getPackage:(NSString *)packageHash
                        error:(NSError **)error
 {
     NSString *updateDirectoryPath = [self getPackageFolderPath:packageHash];
@@ -462,22 +473,22 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                              error:error];
 }
 
-+ (NSString *)getPackageFolderPath:(NSString *)packageHash
+- (NSString *)getPackageFolderPath:(NSString *)packageHash
 {
     return [[self getCodePushPath] stringByAppendingPathComponent:packageHash];
 }
 
-+ (NSDictionary *)getPreviousPackage:(NSError **)error
+- (NSDictionary *)getPreviousPackage:(NSError **)error
 {
     NSString *packageHash = [self getPreviousPackageHash:error];
     if (!packageHash) {
         return nil;
     }
     
-    return [CodePushPackage getPackage:packageHash error:error];
+    return [self getPackage:packageHash error:error];
 }
 
-+ (NSString *)getPreviousPackageHash:(NSError **)error
+- (NSString *)getPreviousPackageHash:(NSError **)error
 {
     NSDictionary *info = [self getCurrentPackageInfo:error];
     if (!info) {
@@ -487,17 +498,18 @@ static NSString *const UnzippedFolderName = @"unzipped";
     return info[@"previousPackage"];
 }
 
-+ (NSString *)getStatusFilePath
+- (NSString *)getStatusFilePath
 {
-    return [[self getCodePushPath] stringByAppendingPathComponent:StatusFile];
+    NSString *fileName = [NSString stringWithFormat: @"%@.%@", bundleName, StatusFile];
+    return [[self getCodePushPath] stringByAppendingPathComponent:fileName];
 }
 
-+ (NSString *)getUnzippedFolderPath
+- (NSString *)getUnzippedFolderPath
 {
     return [[self getCodePushPath] stringByAppendingPathComponent:UnzippedFolderName];
 }
 
-+ (BOOL)installPackage:(NSDictionary *)updatePackage
+- (BOOL)installPackage:(NSDictionary *)updatePackage
    removePendingUpdate:(BOOL)removePendingUpdate
                  error:(NSError **)error
 {
@@ -544,7 +556,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                     error:error];
 }
 
-+ (void)rollbackPackage
+- (void)rollbackPackage
 {
     NSError *error;
     NSMutableDictionary *info = [self getCurrentPackageInfo:&error];
@@ -572,7 +584,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
     [self updateCurrentPackageInfo:info error:&error];
 }
 
-+ (BOOL)updateCurrentPackageInfo:(NSDictionary *)packageInfo
+- (BOOL)updateCurrentPackageInfo:(NSDictionary *)packageInfo
                            error:(NSError **)error
 {
     NSData *packageInfoData = [NSJSONSerialization dataWithJSONObject:packageInfo
