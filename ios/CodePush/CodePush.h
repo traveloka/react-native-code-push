@@ -43,6 +43,7 @@
 + (NSString *)getApplicationSupportDirectory;
 
 - (NSString *)bundleAssetsPath;
+- (NSString *)getBundleName;
 
 /*
  * This method allows the version of the app's binary interface
@@ -177,12 +178,13 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 @interface CodePushTelemetryManager : NSObject
 
-+ (NSDictionary *)getBinaryUpdateReport:(NSString *)appVersion;
-+ (NSDictionary *)getRetryStatusReport;
-+ (NSDictionary *)getRollbackReport:(NSDictionary *)lastFailedPackage;
-+ (NSDictionary *)getUpdateReport:(NSDictionary *)currentPackage;
-+ (void)recordStatusReported:(NSDictionary *)statusReport;
-+ (void)saveStatusReportForRetry:(NSDictionary *)statusReport;
+- (instancetype)initWithBundleName:(NSString *)_bundleName;
+- (NSDictionary *)getBinaryUpdateReport:(NSString *)appVersion;
+- (NSDictionary *)getRetryStatusReport;
+- (NSDictionary *)getRollbackReport:(NSDictionary *)lastFailedPackage;
+- (NSDictionary *)getUpdateReport:(NSDictionary *)currentPackage;
+- (void)recordStatusReported:(NSDictionary *)statusReport;
+- (void)saveStatusReportForRetry:(NSDictionary *)statusReport;
 
 @end
 
@@ -227,6 +229,7 @@ failCallback:(void (^)(NSError *err))failCallback;
 @end
 
 void CPLog(NSString *formatString, ...);
+NSString* appendKeyWithBundleName(NSString *key, NSString *bundleName);
 
 typedef NS_ENUM(NSInteger, CodePushInstallMode) {
     CodePushInstallModeImmediate,

@@ -34,6 +34,7 @@
     
     CodePushConfig *codePushConfig;
     CodePushPackage *codePushPackage;
+    CodePushTelemetryManager *codePushTelemetryManager;
     
     // These values are used to save the NS bundle, name, extension and subdirectory
     // for the JS bundle in the binary.
@@ -117,6 +118,11 @@ static NSString *const LatestRollbackCountKey = @"count";
     return [resourcePath stringByAppendingPathComponent:[CodePushUpdateUtils assetsFolderName]];
 }
 
+- (NSString *)getBundleName
+{
+    return bundleResourceName;
+}
+
 - (NSURL *)bundleURL
 {
     return [self bundleURLForResource:bundleResourceName
@@ -163,6 +169,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     bundleResourceBundle = resourceBundle;
 
     codePushPackage = [[CodePushPackage alloc] initWithBundleName:bundleResourceName];
+    codePushTelemetryManager = [[CodePushTelemetryManager alloc] initWithBundleName:bundleResourceName];
     [self ensureBinaryBundleExists];
 
     NSString *logMessageFormat = @"Loading JS bundle from %@";
@@ -401,7 +408,9 @@ static NSString *const LatestRollbackCountKey = @"count";
 #endif
     self.paused = YES;
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSDictionary *pendingUpdate = [preferences objectForKey:PendingUpdateKey];
+    NSString *pendingUpdateKey = appendKeyWithBundleName(PendingUpdateKey, [self getBundleName]);
+    NSDictionary *pendingUpdate = [preferences objectForKey:pendingUpdateKey];
+
     if (pendingUpdate) {
         _isFirstRunAfterUpdate = YES;
         BOOL updateIsLoading = [pendingUpdate[PendingUpdateIsLoadingKey] boolValue];
@@ -428,7 +437,8 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (NSDictionary *)getLatestRollbackInfo
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSDictionary *latestRollbackInfo = [preferences objectForKey:LatestRollbackInfoKey];
+    NSString *latestRollbackInfoKey = appendKeyWithBundleName(LatestRollbackInfoKey, [self getBundleName]);
+    NSDictionary *latestRollbackInfo = [preferences objectForKey:latestRollbackInfoKey];
     return latestRollbackInfo;
 }
 
@@ -444,7 +454,8 @@ static NSString *const LatestRollbackCountKey = @"count";
     }
 
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *latestRollbackInfo = [preferences objectForKey:LatestRollbackInfoKey];
+    NSString *latestRollbackInfoKey = appendKeyWithBundleName(LatestRollbackInfoKey, [self getBundleName]);
+    NSMutableDictionary *latestRollbackInfo = [preferences objectForKey:latestRollbackInfoKey];
     if (latestRollbackInfo == nil) {
         latestRollbackInfo = [[NSMutableDictionary alloc] init];
     } else {
@@ -485,7 +496,8 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (BOOL)isFailedHash:(NSString*)packageHash
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+    NSString *failedUpdatesKey = appendKeyWithBundleName(FailedUpdatesKey, [self getBundleName]);
+    NSMutableArray *failedUpdates = [preferences objectForKey:failedUpdatesKey];
     if (failedUpdates == nil || packageHash == nil) {
         return NO;
     } else {
@@ -515,7 +527,8 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (BOOL)isPendingUpdate:(NSString*)packageHash
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSDictionary *pendingUpdate = [preferences objectForKey:PendingUpdateKey];
+    NSString *pendingUpdateKey = appendKeyWithBundleName(PendingUpdateKey, [self getBundleName]);
+    NSDictionary *pendingUpdate = [preferences objectForKey:pendingUpdateKey];
 
     // If there is a pending update whose "state" isn't loading, then we consider it "pending".
     // Additionally, if a specific hash was provided, we ensure it matches that of the pending update.
@@ -588,7 +601,8 @@ static NSString *const LatestRollbackCountKey = @"count";
     }
     
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+    NSString *failedUpdatesKey = appendKeyWithBundleName(FailedUpdatesKey, [self getBundleName]);
+    NSMutableArray *failedUpdates = [preferences objectForKey:failedUpdatesKey];
     if (failedUpdates == nil) {
         failedUpdates = [[NSMutableArray alloc] init];
     } else {
@@ -609,7 +623,8 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (void)removeFailedUpdates
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    [preferences removeObjectForKey:FailedUpdatesKey];
+    NSString *failedUpdatesKey = appendKeyWithBundleName(FailedUpdatesKey, [self getBundleName]);
+    [preferences removeObjectForKey:failedUpdatesKey];
     [preferences synchronize];
 }
 
@@ -620,7 +635,8 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (void)removePendingUpdate
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    [preferences removeObjectForKey:PendingUpdateKey];
+    NSString *pendingUpdateKey = appendKeyWithBundleName(PendingUpdateKey, [self getBundleName]);
+    [preferences removeObjectForKey:pendingUpdateKey];
     [preferences synchronize];
 }
 
@@ -639,7 +655,8 @@ static NSString *const LatestRollbackCountKey = @"count";
                                    packageHash,PendingUpdateHashKey,
                                    [NSNumber numberWithBool:isLoading],PendingUpdateIsLoadingKey, nil];
 
-    [preferences setObject:pendingUpdate forKey:PendingUpdateKey];
+    NSString *pendingUpdateKey = appendKeyWithBundleName(PendingUpdateKey, [self getBundleName]);
+    [preferences setObject:pendingUpdate forKey:pendingUpdateKey];
     [preferences synchronize];
 }
 
@@ -998,11 +1015,12 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
     if (needToReportRollback) {
         needToReportRollback = NO;
         NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-        NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+        NSString *failedUpdatesKey = appendKeyWithBundleName(FailedUpdatesKey, [self getBundleName]);
+        NSMutableArray *failedUpdates = [preferences objectForKey:failedUpdatesKey];
         if (failedUpdates) {
             NSDictionary *lastFailedPackage = [failedUpdates lastObject];
             if (lastFailedPackage) {
-                resolve([CodePushTelemetryManager getRollbackReport:lastFailedPackage]);
+                resolve([codePushTelemetryManager getRollbackReport:lastFailedPackage]);
                 return;
             }
         }
@@ -1010,15 +1028,15 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
         NSError *error;
         NSDictionary *currentPackage = [codePushPackage getCurrentPackage:&error];
         if (!error && currentPackage) {
-            resolve([CodePushTelemetryManager getUpdateReport:currentPackage]);
+            resolve([codePushTelemetryManager getUpdateReport:currentPackage]);
             return;
         }
     } else if (isRunningBinaryVersion) {
         NSString *appVersion = [[CodePushConfig current] appVersion];
-        resolve([CodePushTelemetryManager getBinaryUpdateReport:appVersion]);
+        resolve([codePushTelemetryManager getBinaryUpdateReport:appVersion]);
         return;
     } else {
-        NSDictionary *retryStatusReport = [CodePushTelemetryManager getRetryStatusReport];
+        NSDictionary *retryStatusReport = [codePushTelemetryManager getRetryStatusReport];
         if (retryStatusReport) {
             resolve(retryStatusReport);
             return;
@@ -1030,12 +1048,12 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
 
 RCT_EXPORT_METHOD(recordStatusReported:(NSDictionary *)statusReport)
 {
-    [CodePushTelemetryManager recordStatusReported:statusReport];
+    [codePushTelemetryManager recordStatusReported:statusReport];
 }
 
 RCT_EXPORT_METHOD(saveStatusReportForRetry:(NSDictionary *)statusReport)
 {
-    [CodePushTelemetryManager saveStatusReportForRetry:statusReport];
+    [codePushTelemetryManager saveStatusReportForRetry:statusReport];
 }
 
 #pragma mark - RCTFrameUpdateObserver Methods
