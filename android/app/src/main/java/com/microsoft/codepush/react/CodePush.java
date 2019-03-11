@@ -62,10 +62,10 @@ public class CodePush implements ReactPackage {
         mContext = context.getApplicationContext();
 
         mUpdateManager = new CodePushUpdateManager(context.getFilesDir().getAbsolutePath());
-        mTelemetryManager = new CodePushTelemetryManager(mContext);
+        mTelemetryManager = new CodePushTelemetryManager(mContext, this);
         mDeploymentKey = deploymentKey;
         mIsDebugMode = isDebugMode;
-        mSettingsManager = new SettingsManager(mContext);
+        mSettingsManager = new SettingsManager(mContext, this);
 
         if (sAppVersion == null) {
             try {
@@ -154,6 +154,8 @@ public class CodePush implements ReactPackage {
     public String getAssetsBundleFileName() {
         return mAssetsBundleFileName;
     }
+
+    public String getAppPrefix() { return getAssetsBundleFileName() + "-"; }
 
     public String getPublicKey() {
         return mPublicKey;
