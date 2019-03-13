@@ -91,7 +91,10 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         currentActivity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                currentActivity.recreate();
+                // Recreate activity when focused; Ignore otherwise
+                if (currentActivity.hasWindowFocus()) {
+                    currentActivity.recreate();
+                }
             }
         });
     }
