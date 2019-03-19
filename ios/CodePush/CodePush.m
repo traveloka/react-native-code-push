@@ -969,9 +969,10 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
                     rejecter:(RCTPromiseRejectBlock)reject)
 {
     // If this is an unconditional restart request, or there
-    // is current pending update, then reload the app.
+    // is current pending update, then trigger viewDidLoad on top most VC
     if (!onlyIfUpdateIsPending || [self isPendingUpdate:nil]) {
-        [self loadBundle];
+        UIViewController *vc = [self topViewController];
+        [vc viewDidLoad];
         resolve(@(YES));
         return;
     }
@@ -979,6 +980,25 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
     resolve(@(NO));
 }
 
+- (UIViewController *)topViewController{
+    return [self topViewController:[UIApplication sharedApplication].keyWindow.rootViewController];
+}
+
+- (UIViewController *)topViewController:(UIViewController *)rootViewController
+{
+    if ([rootViewController isKindOfClass:[UINavigationController class]]) {
+        UINavigationController *navigationController = (UINavigationController *)rootViewController;
+        return [self topViewController:[navigationController.viewControllers lastObject]];
+    }
+    if ([rootViewController isKindOfClass:[UITabBarController class]]) {
+        UITabBarController *tabController = (UITabBarController *)rootViewController;
+        return [self topViewController:tabController.selectedViewController];
+    }
+    if (rootViewController.presentedViewController) {
+        return [self topViewController:rootViewController];
+    }
+    return rootViewController;
+}
 /*
  * This method clears CodePush's downloaded updates.
  * It is needed to switch to a different deployment if the current deployment is more recent.
