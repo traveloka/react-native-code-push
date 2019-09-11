@@ -39,7 +39,7 @@ public class CodePush implements ReactPackage {
 
     // Config properties.
     private String mDeploymentKey;
-    private static String mServerUrl = "https://codepush.azurewebsites.net/";
+    private static String mServerUrl = "https://codepush.appcenter.ms/";
 
     private Context mContext;
     private final boolean mIsDebugMode;
@@ -217,7 +217,15 @@ public class CodePush implements ReactPackage {
         mUpdateManager.setAssetsBundleFileName(assetsBundleFileName);
         String binaryJsBundleUrl = CodePushConstants.ASSETS_BUNDLE_PREFIX + assetsBundleFileName;
 
-        String packageFilePath = mUpdateManager.getCurrentPackageBundlePath(this.mAssetsBundleFileName);
+        String packageFilePath = null;
+        try {
+            packageFilePath = mUpdateManager.getCurrentPackageBundlePath(this.mAssetsBundleFileName);
+        } catch (CodePushMalformedDataException e) {
+            // We need to recover the app in case 'codepush.json' is corrupted
+            CodePushUtils.log(e.getMessage());
+            clearUpdates();
+        }
+
         if (packageFilePath == null) {
             // There has not been any downloaded updates.
             CodePushUtils.logBundleUrl(binaryJsBundleUrl);

@@ -17,11 +17,12 @@
     "url": "https://github.com/Microsoft/react-native-code-push"
   },
   "dependencies": {
-    "code-push": "2.0.6",
+    "code-push": "^3.0.1",
     "glob": "^5.0.15",
     "hoist-non-react-statics": "^2.3.1",
-    "inquirer": "1.1.2",
+    "inquirer": "^1.1.2",
     "plist": "3.0.1",
+    "semver": "^5.6.0",
     "xcode": "1.0.0"
   },
   "devDependencies": {
@@ -32,31 +33,25 @@
     "express": "latest",
     "gulp-insert": "latest",
     "gulp-tslint": "latest",
-    "gulp-typescript": "2.12.2",
+    "gulp-typescript": "^5.0.1",
     "mkdirp": "latest",
-    "q": "^1.4.1",
+    "q": "^1.5.1",
     "run-sequence": "latest",
-    "tslint": "^4.3.1",
-    "typescript": "^2.1.5"
+    "tslint": "^5.18.0",
+    "typescript": "^2.9.2"
   },
   "rnpm": {
     "android": {
-      "packageInstance": "new CodePush(${androidDeploymentKey}, getApplicationContext(), BuildConfig.DEBUG)"
+      "packageInstance": "new CodePush(getResources().getString(R.string.reactNativeCodePush_androidDeploymentKey), getApplicationContext(), BuildConfig.DEBUG)"
     },
     "ios": {
       "sharedLibraries": [
         "libz"
       ]
     },
-    "params": [
-      {
-        "type": "input",
-        "name": "androidDeploymentKey",
-        "message": "What is your CodePush deployment key for Android (hit <ENTER> to ignore)"
-      }
-    ],
     "commands": {
-      "postlink": "node node_modules/react-native-code-push/scripts/postlink/run"
+      "postlink": "node node_modules/react-native-code-push/scripts/postlink/run",
+      "postunlink": "node node_modules/react-native-code-push/scripts/postunlink/run"
     }
   }
 }

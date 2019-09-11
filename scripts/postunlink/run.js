@@ -1,11 +1,11 @@
-var postlinks = [
-    require("./android/postlink"),
-    require("./ios/postlink")
+var postunlinks = [
+    require("./ios/postunlink"),
+    require("./android/postunlink")
 ];
 
 //run them sequentially
-postlinks
+postunlinks
     .reduce((p, fn) => p.then(fn), Promise.resolve())
     .catch((err) => {
         console.error(err.message);
-    }); 
+    });

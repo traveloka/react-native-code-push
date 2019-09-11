@@ -97,6 +97,22 @@ Once your Xcode project has been setup to build/link the CodePush plugin, you ne
     #import <CodePush/CodePush.h>
     ```
 
+For React Native 0.59 and above:
+
+2. Find the following line of code, which sets the source URL for bridge for production releases:
+
+    ```objective-c
+    return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
+    ```
+
+3. Replace it with this line:
+
+    ```objective-c
+    return [CodePush bundleURL];
+    ```
+
+For React Native 0.58 and below:
+
 2. Find the following line of code, which loads your JS Bundle from the app binary for production releases:
 
     ```objective-c
@@ -115,7 +131,20 @@ This change configures your app to always load the most recent version of your a
 
 Typically, you're only going to want to use CodePush to resolve your JS bundle location within release builds, and therefore, we recommend using the `DEBUG` pre-processor macro to dynamically switch between using the packager server and CodePush, depending on whether you are debugging or not. This will make it much simpler to ensure you get the right behavior you want in production, while still being able to use the Chrome Dev Tools, live reload, etc. at debug-time.
 
-For React Native 0.49 and above:
+For React Native 0.59 and above:
+
+```objective-c
+- (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
+{
+  #if DEBUG
+    return [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index" fallbackResource:nil];
+  #else
+    return [CodePush bundleURL];
+  #endif
+}
+```
+
+For React Native 0.49 - 0.58:
 
 ```objective-c
 NSURL *jsCodeLocation;
@@ -139,7 +168,7 @@ NSURL *jsCodeLocation;
 #endif
 ```
 
-To let the CodePush runtime know which deployment it should query for updates against, open your app's `Info.plist` file and add a new entry named `CodePushDeploymentKey`, whose value is the key of the deployment you want to configure this app against (e.g. the key for the `Staging` deployment for the `FooBar` app). You can retrieve this value by running `code-push deployment ls <appName> -k` in the CodePush CLI (the `-k` flag is necessary since keys aren't displayed by default) and copying the value of the `Deployment Key` column which corresponds to the deployment you want to use (see below). Note that using the deployment's name (e.g. Staging) will not work. That "friendly name" is intended only for authenticated management usage from the CLI, and not for public consumption within your app.
+To let the CodePush runtime know which deployment it should query for updates against, open your app's `Info.plist` file and add a new entry named `CodePushDeploymentKey`, whose value is the key of the deployment you want to configure this app against (like the key for the `Staging` deployment for the `FooBar` app). You can retrieve this value by running `code-push deployment ls <appName> -k` in the CodePush CLI (the `-k` flag is necessary since keys aren't displayed by default) and copying the value of the `Deployment Key` column which corresponds to the deployment you want to use (see below). Note that using the deployment's name (like Staging) will not work. That "friendly name" is intended only for authenticated management usage from the CLI, and not for public consumption within your app.
 
 ![Deployment list](https://cloud.githubusercontent.com/assets/116461/11601733/13011d5e-9a8a-11e5-9ce2-b100498ffb34.png)
 
@@ -149,7 +178,7 @@ In order to effectively make use of the `Staging` and `Production` deployments t
 
 CodePush plugin makes HTTPS requests to the following domains:
 
-- codepush.azurewebsites.net
+- codepush.appcenter.ms
 - codepush.blob.core.windows.net
 - codepushupdates.azureedge.net
 
@@ -164,7 +193,7 @@ If you want to change the default HTTP security configuration for any of these d
     <dict>
       <key>NSExceptionDomains</key>
       <dict>
-        <key>codepush.azurewebsites.net</key>
+        <key>codepush.appcenter.ms</key>
         <dict><!-- read the ATS Apple Docs for available options --></dict>
       </dict>
     </dict>
