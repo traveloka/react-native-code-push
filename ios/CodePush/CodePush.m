@@ -971,9 +971,12 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
     // If this is an unconditional restart request, or there
     // is current pending update, then trigger viewDidLoad on top most VC
     if (!onlyIfUpdateIsPending || [self isPendingUpdate:nil]) {
-        UIViewController *vc = [self topViewController];
-        [vc viewDidLoad];
-        resolve(@(YES));
+        dispatch_sync(dispatch_get_main_queue(), ^{
+           // do work here
+           UIViewController *vc = [self topViewController];
+           [vc viewDidLoad];
+           resolve(@(YES));
+        });
         return;
     }
 
