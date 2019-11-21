@@ -976,7 +976,7 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
            UIViewController *vc = [self topViewController];
            [vc viewDidLoad];
            [[NSNotificationCenter defaultCenter]
-             postNotificationName:@"CodepushDidRestart"
+             postNotificationName:@"RCTJavaScriptDidLoadNotification"
              object:self];
            resolve(@(YES));
         });
