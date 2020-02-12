@@ -769,7 +769,7 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
             if (expectedContentLength == receivedContentLength) {
                 [self getInstance].didUpdateProgress = NO;
                 [self getInstance].paused = YES;
-                [[self getInstance] dispatchDownloadProgressEvent];
+                [self dispatchDownloadProgressEvent];
             }
         }
         // The download completed
@@ -891,7 +891,7 @@ RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
 {
     NSError *error;
     [[self getInstance].codePushPackage installPackage:updatePackage
-                                   removePendingUpdate:[self isPendingUpdate:nil]
+                                   removePendingUpdate:[[self getInstance] isPendingUpdate:nil]
                                                  error:&error];
 
     if (error) {
@@ -1071,7 +1071,7 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
                 return;
             }
         }
-    } else if (_isFirstRunAfterUpdate) {
+    } else if ([self getInstance].isFirstRunAfterUpdate) {
         NSError *error;
         NSDictionary *currentPackage = [[self getInstance].codePushPackage getCurrentPackage:&error];
         if (!error && currentPackage) {
