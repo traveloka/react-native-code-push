@@ -10,6 +10,8 @@
 
 @interface CodePush : RCTEventEmitter
 
++ (CodePush *)sharedInstance;
+
 - (instancetype)initWithConfig:(NSDictionary *)config;
 
 - (NSURL *)binaryBundleURL;
