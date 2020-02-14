@@ -391,7 +391,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 
             "4. Deploy a Release build to the simulator, which unlike Debug builds, will generate the JS bundle (React Native >=0.22.0 only).";
         #else
-            errorMessage = [NSString stringWithFormat:@"The specified JS bundle file wasn't found within the app's binary. Is \"%@\" the correct file name?", [bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]];
+            errorMessage = [NSString stringWithFormat:@"The specified JS bundle file wasn't found within the app's binary. Is \"%@\" the correct file name?", [_bundleResourceName stringByAppendingPathExtension:_bundleResourceExtension]];
         #endif
     #else
         errorMessage = @"Something went wrong. Please verify if generated JS bundle is correct. ";
