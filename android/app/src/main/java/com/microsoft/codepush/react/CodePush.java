@@ -58,10 +58,15 @@ public class CodePush implements ReactPackage {
         return mServerUrl;
     }
 
-    public CodePush(String deploymentKey, Context context, boolean isDebugMode) {
+    public CodePush(String deploymentKey, String assetsBundleFileName, Context context, boolean isDebugMode) {
         mContext = context.getApplicationContext();
-
         mUpdateManager = new CodePushUpdateManager(context.getFilesDir().getAbsolutePath());
+
+        if(assetsBundleFileName != null) {
+            this.mAssetsBundleFileName = assetsBundleFileName;
+            mUpdateManager.setAssetsBundleFileName(assetsBundleFileName);
+        }
+
         mTelemetryManager = new CodePushTelemetryManager(mContext, this);
         mDeploymentKey = deploymentKey;
         mIsDebugMode = isDebugMode;
@@ -86,6 +91,10 @@ public class CodePush implements ReactPackage {
 
         clearDebugCacheIfNeeded(null);
         initializeUpdateAfterRestart();
+    }
+
+    public CodePush(String deploymentKey, Context context, boolean isDebugMode) {
+        this(deploymentKey, null, context, isDebugMode);
     }
 
     public CodePush(String deploymentKey, Context context, boolean isDebugMode, String serverUrl) {
@@ -226,7 +235,10 @@ public class CodePush implements ReactPackage {
     }
 
     public String getJSBundleFile() {
-        return getJSBundleFile(CodePushConstants.DEFAULT_JS_BUNDLE_NAME);
+        if (mAssetsBundleFileName == null) {
+            return getJSBundleFile(CodePushConstants.DEFAULT_JS_BUNDLE_NAME);
+        }
+        return getJSBundleFile(mAssetsBundleFileName);
     }
 
     public String getJSBundleFile(String assetsBundleFileName) {
