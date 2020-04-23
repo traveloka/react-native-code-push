@@ -183,6 +183,8 @@ static NSString *const LatestRollbackCountKey = @"count";
     _bundleResourceExtension = resourceExtension;
     _bundleResourceSubdirectory = resourceSubdirectory;
     _bundleResourceBundle = resourceBundle;
+    
+    [self initializeUpdateAfterRestart];
 
     _codePushPackage = [[CodePushPackage alloc] initWithBundleName:_bundleResourceName];
     _codePushTelemetryManager = [[CodePushTelemetryManager alloc] initWithBundleName:_bundleResourceName];
@@ -404,11 +406,6 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (instancetype)init
 {
     self = [super init];
-
-    if (self) {
-        [self initializeUpdateAfterRestart];
-    }
-
     return self;
 }
 
