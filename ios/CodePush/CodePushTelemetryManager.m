@@ -12,9 +12,19 @@ static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersio
 static NSString *const RetryDeploymentReportKey = @"CODE_PUSH_RETRY_DEPLOYMENT_REPORT";
 static NSString *const StatusKey = @"status";
 
-@implementation CodePushTelemetryManager
+@implementation CodePushTelemetryManager {
+    NSString *bundleName;
+}
 
-+ (NSDictionary *)getBinaryUpdateReport:(NSString *)appVersion
+- (instancetype)initWithBundleName:(NSString *)_bundleName {
+    if (self = [self init]) {
+        bundleName = _bundleName;
+    }
+    
+    return self;
+}
+
+- (NSDictionary *)getBinaryUpdateReport:(NSString *)appVersion
 {
     NSString *previousStatusReportIdentifier = [self getPreviousStatusReportIdentifier];
     if (previousStatusReportIdentifier == nil) {
@@ -43,10 +53,11 @@ static NSString *const StatusKey = @"status";
     return nil;
 }
 
-+ (NSDictionary *)getRetryStatusReport
+- (NSDictionary *)getRetryStatusReport
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSDictionary *retryStatusReport = [preferences objectForKey:RetryDeploymentReportKey];
+    NSString *retryDeploymentReportKey = appendKeyWithBundleName(RetryDeploymentReportKey, bundleName);
+    NSDictionary *retryStatusReport = [preferences objectForKey:retryDeploymentReportKey];
     if (retryStatusReport) {
         [self clearRetryStatusReport];
         return retryStatusReport;
@@ -55,7 +66,7 @@ static NSString *const StatusKey = @"status";
     }
 }
 
-+ (NSDictionary *)getRollbackReport:(NSDictionary *)lastFailedPackage
+- (NSDictionary *)getRollbackReport:(NSDictionary *)lastFailedPackage
 {
     return @{
               PackageKey: lastFailedPackage,
@@ -63,7 +74,7 @@ static NSString *const StatusKey = @"status";
             };
 }
 
-+ (NSDictionary *)getUpdateReport:(NSDictionary *)currentPackage
+- (NSDictionary *)getUpdateReport:(NSDictionary *)currentPackage
 {
     NSString *currentPackageIdentifier = [self getPackageStatusReportIdentifier:currentPackage];
     NSString *previousStatusReportIdentifier = [self getPreviousStatusReportIdentifier];
@@ -99,7 +110,7 @@ static NSString *const StatusKey = @"status";
     return nil;
 }
 
-+ (void)recordStatusReported:(NSDictionary *)statusReport
+- (void)recordStatusReported:(NSDictionary *)statusReport
 {
     // We don't need to record rollback reports, so exit early if that's what was specified.
     if ([DeploymentFailed isEqualToString:statusReport[StatusKey]]) {
@@ -114,28 +125,30 @@ static NSString *const StatusKey = @"status";
     }
 }
 
-+ (void)saveStatusReportForRetry:(NSDictionary *)statusReport
+- (void)saveStatusReportForRetry:(NSDictionary *)statusReport
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    [preferences setValue:statusReport forKey:RetryDeploymentReportKey];
+    NSString *retryDeploymentReportKey = appendKeyWithBundleName(RetryDeploymentReportKey, bundleName);
+    [preferences setValue:statusReport forKey:retryDeploymentReportKey];
     [preferences synchronize];
 }
 
 #pragma mark - private methods
 
-+ (void)clearRetryStatusReport
+- (void)clearRetryStatusReport
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    [preferences setValue:nil forKey:RetryDeploymentReportKey];
+    NSString *retryDeploymentReportKey = appendKeyWithBundleName(RetryDeploymentReportKey, bundleName);
+    [preferences setValue:nil forKey:retryDeploymentReportKey];
     [preferences synchronize];
 }
 
-+ (NSString *)getDeploymentKeyFromStatusReportIdentifier:(NSString *)statusReportIdentifier
+- (NSString *)getDeploymentKeyFromStatusReportIdentifier:(NSString *)statusReportIdentifier
 {
     return [[statusReportIdentifier componentsSeparatedByString:@":"] firstObject];
 }
 
-+ (NSString *)getPackageStatusReportIdentifier:(NSDictionary *)package
+- (NSString *)getPackageStatusReportIdentifier:(NSDictionary *)package
 {
     // Because deploymentKeys can be dynamically switched, we use a
     // combination of the deploymentKey and label as the packageIdentifier.
@@ -148,27 +161,29 @@ static NSString *const StatusKey = @"status";
     }
 }
 
-+ (NSString *)getPreviousStatusReportIdentifier
+- (NSString *)getPreviousStatusReportIdentifier
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    NSString *sentStatusReportIdentifier = [preferences objectForKey:LastDeploymentReportKey];
+    NSString *lastDeploymentReportKey = appendKeyWithBundleName(LastDeploymentReportKey, bundleName);
+    NSString *sentStatusReportIdentifier = [preferences objectForKey:lastDeploymentReportKey];
     return sentStatusReportIdentifier;
 }
 
-+ (NSString *)getVersionLabelFromStatusReportIdentifier:(NSString *)statusReportIdentifier
+- (NSString *)getVersionLabelFromStatusReportIdentifier:(NSString *)statusReportIdentifier
 {
     return [[statusReportIdentifier componentsSeparatedByString:@":"] lastObject];
 }
 
-+ (BOOL)isStatusReportIdentifierCodePushLabel:(NSString *)statusReportIdentifier
+- (BOOL)isStatusReportIdentifierCodePushLabel:(NSString *)statusReportIdentifier
 {
     return statusReportIdentifier != nil && [statusReportIdentifier rangeOfString:@":"].location != NSNotFound;
 }
 
-+ (void)saveStatusReportedForIdentifier:(NSString *)appVersionOrPackageIdentifier
+- (void)saveStatusReportedForIdentifier:(NSString *)appVersionOrPackageIdentifier
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-    [preferences setValue:appVersionOrPackageIdentifier forKey:LastDeploymentReportKey];
+    NSString *lastDeploymentReportKey = appendKeyWithBundleName(LastDeploymentReportKey, bundleName);
+    [preferences setValue:appVersionOrPackageIdentifier forKey:lastDeploymentReportKey];
     [preferences synchronize];
 }
 

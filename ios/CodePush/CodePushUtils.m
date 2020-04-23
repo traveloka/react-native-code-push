@@ -7,3 +7,7 @@ void CPLog(NSString *formatString, ...) {
     NSLogv(prependedFormatString, args);
     va_end(args);
 }
+
+NSString* appendKeyWithBundleName(NSString *key, NSString *bundleName) {
+    return [NSString stringWithFormat:@"%@-%@", key, bundleName];
+}

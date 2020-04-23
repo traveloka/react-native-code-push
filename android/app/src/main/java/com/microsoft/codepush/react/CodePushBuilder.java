@@ -9,6 +9,7 @@ public class CodePushBuilder {
     private boolean mIsDebugMode;
     private String mServerUrl;
     private Integer mPublicKeyResourceDescriptor;
+    private String mJsBundleName = CodePushConstants.DEFAULT_JS_BUNDLE_NAME;
 
     public CodePushBuilder(String deploymentKey, Context context) {
         this.mDeploymentKey = deploymentKey;
@@ -31,7 +32,12 @@ public class CodePushBuilder {
         return this;
     }
 
+    public CodePushBuilder setJsBundleName(String jsBundleName) {
+        this.mJsBundleName = jsBundleName;
+        return this;
+    }
+
     public CodePush build() {
-        return new CodePush(this.mDeploymentKey, this.mContext, this.mIsDebugMode, this.mServerUrl, this.mPublicKeyResourceDescriptor);
+        return new CodePush(this.mDeploymentKey, this.mJsBundleName, this.mContext, this.mIsDebugMode, this.mServerUrl, this.mPublicKeyResourceDescriptor);
     }
 }

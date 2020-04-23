@@ -91,7 +91,10 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         currentActivity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                currentActivity.recreate();
+                // Recreate activity when focused; Ignore otherwise
+                if (currentActivity.hasWindowFocus()) {
+                    currentActivity.recreate();
+                }
             }
         });
     }
@@ -116,7 +119,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         }
     }
 
-    private void loadBundle() {
+    private void loadBundle(final int installMode) {
         clearLifecycleEventListener();
         try {
             mCodePush.clearDebugCacheIfNeeded(resolveInstanceManager());
@@ -130,6 +133,13 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             //     logic to reload the current React context.
             final ReactInstanceManager instanceManager = resolveInstanceManager();
             if (instanceManager == null) {
+                return;
+            }
+
+            // Restart activity on immediate install mode to prevent crash
+            // We can't append vendor bundle here
+            if (installMode == CodePushInstallMode.IMMEDIATE.getValue()) {
+                loadBundleLegacy();
                 return;
             }
 
@@ -190,7 +200,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
 
     // Use reflection to find the ReactInstanceManager. See #556 for a proposal for a less brittle way to approach this.
     private ReactInstanceManager resolveInstanceManager() throws NoSuchFieldException, IllegalAccessException {
-        ReactInstanceManager instanceManager = CodePush.getReactInstanceManager();
+        ReactInstanceManager instanceManager = mCodePush.getReactInstanceManager();
         if (instanceManager != null) {
             return instanceManager;
         }
@@ -460,7 +470,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                                     @Override
                                     public void run() {
                                         CodePushUtils.log("Loading bundle on suspend");
-                                        loadBundle();
+                                        loadBundle(installMode);
                                     }
                                 };
 
@@ -474,7 +484,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                                         if (installMode == CodePushInstallMode.IMMEDIATE.getValue()
                                                 || durationInBackground >= CodePushNativeModule.this.mMinimumBackgroundDuration) {
                                             CodePushUtils.log("Loading bundle on resume");
-                                            loadBundle();
+                                            loadBundle(installMode);
                                         }
                                     }
                                 }
@@ -588,7 +598,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             // If this is an unconditional restart request, or there
             // is current pending update, then reload the app.
             if (!onlyIfUpdateIsPending || mSettingsManager.isPendingUpdate(null)) {
-                loadBundle();
+                loadBundle(CodePushInstallMode.IMMEDIATE.getValue());
                 promise.resolve(true);
                 return;
             }
