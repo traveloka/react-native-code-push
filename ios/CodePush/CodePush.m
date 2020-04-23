@@ -151,6 +151,8 @@ static NSString *const LatestRollbackCountKey = @"count";
     bundleResourceExtension = resourceExtension;
     bundleResourceSubdirectory = resourceSubdirectory;
     bundleResourceBundle = resourceBundle;
+    
+    [self initializeUpdateAfterRestart];
 
     [self ensureBinaryBundleExists];
 
@@ -370,11 +372,6 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (instancetype)init
 {
     self = [super init];
-
-    if (self) {
-        [self initializeUpdateAfterRestart];
-    }
-
     return self;
 }
 
