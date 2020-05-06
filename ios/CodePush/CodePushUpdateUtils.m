@@ -1,6 +1,6 @@
 #import "CodePush.h"
 #include <CommonCrypto/CommonDigest.h>
-#import "JWT.h"
+#import <JWT/JWT.h>
 
 @implementation CodePushUpdateUtils
 
