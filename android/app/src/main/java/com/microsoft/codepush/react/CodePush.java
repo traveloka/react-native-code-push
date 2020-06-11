@@ -233,9 +233,11 @@ public class CodePush implements ReactPackage {
             throw new CodePushNotInitializedException("A CodePush instance has not been created yet. Have you added it to your app's list of ReactPackages?");
         }
 
+        // This method can only be called from external
         // Call initializeUpdateAfterRestart method only after assetsBundleFileName has been assigned to UpdateManager
         this.mAssetsBundleFileName = assetsBundleFileName;
         initializeUpdateAfterRestart();
+
         return mCurrentInstance.getJSBundleFileInternal(assetsBundleFileName);
     }
 
