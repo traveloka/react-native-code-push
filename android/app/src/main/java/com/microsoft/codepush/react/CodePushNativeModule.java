@@ -136,9 +136,8 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            // Restart activity on immediate install mode to prevent crash
-            // We can't append vendor bundle here
-            if (installMode == CodePushInstallMode.IMMEDIATE.getValue()) {
+            // Only restart activity on immediate install mode when CodePush is not the main JS bundle
+            if (installMode == CodePushInstallMode.IMMEDIATE.getValue() && !mCodePush.isMainJSBundle()) {
                 loadBundleLegacy();
                 return;
             }

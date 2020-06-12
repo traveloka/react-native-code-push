@@ -47,8 +47,9 @@ public class CodePush implements ReactPackage {
     private static String mPublicKey;
 
     private ReactInstanceHolder mReactInstanceHolder;
-    private ReactInstanceManager mReactInstanceManager;
     private CodePush mCurrentInstance;
+
+    private boolean mIsMainJSBundle = true;
 
     public CodePush(String deploymentKey, Context context) {
         this(deploymentKey, context, false);
@@ -394,22 +395,25 @@ public class CodePush implements ReactPackage {
         mSettingsManager.removeFailedUpdates();
     }
 
+    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder, boolean isMainJSBundle) {
+        mReactInstanceHolder = reactInstanceHolder;
+        mIsMainJSBundle = isMainJSBundle;
+    }
+
     public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
         mReactInstanceHolder = reactInstanceHolder;
+        mIsMainJSBundle = true;
     }
 
     public ReactInstanceManager getReactInstanceManager() {
-        if (mReactInstanceManager != null) {
-            return  mReactInstanceManager;
-        }
         if (mReactInstanceHolder == null) {
             return null;
         }
         return mReactInstanceHolder.getReactInstanceManager();
     }
 
-    public void setReactInstanceManager(ReactInstanceManager reactInstanceManager) {
-        mReactInstanceManager = reactInstanceManager;
+    public boolean isMainJSBundle() {
+        return mIsMainJSBundle;
     }
 
     @Override
