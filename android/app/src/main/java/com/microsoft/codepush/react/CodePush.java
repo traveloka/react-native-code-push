@@ -49,7 +49,7 @@ public class CodePush implements ReactPackage {
     private ReactInstanceHolder mReactInstanceHolder;
     private CodePush mCurrentInstance;
 
-    private boolean mIsMainJSBundle = true;
+    private boolean mIsMainJSBundle;
 
     public CodePush(String deploymentKey, Context context) {
         this(deploymentKey, context, false);
@@ -401,8 +401,20 @@ public class CodePush implements ReactPackage {
     }
 
     public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
-        mReactInstanceHolder = reactInstanceHolder;
-        mIsMainJSBundle = true;
+        setReactInstanceHolder(reactInstanceHolder, false);
+    }
+
+    public void setReactInstanceManager(final ReactInstanceManager reactInstanceManager, boolean isMainJSBundle) {
+        setReactInstanceHolder(new ReactInstanceHolder() {
+            @Override
+            public ReactInstanceManager getReactInstanceManager() {
+                return reactInstanceManager;
+            }
+        }, isMainJSBundle);
+    }
+
+    public void setReactInstanceManager(ReactInstanceManager reactInstanceManager) {
+        setReactInstanceManager(reactInstanceManager, false);
     }
 
     public ReactInstanceManager getReactInstanceManager() {
