@@ -137,7 +137,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             }
 
             // Only restart activity on immediate install mode when CodePush is not the main JS bundle
-            if (installMode == CodePushInstallMode.IMMEDIATE.getValue() && !mCodePush.isMainJSBundle()) {
+            if (installMode == CodePushInstallMode.IMMEDIATE.getValue() && !mCodePush.shouldSetJSBundleOnUpdate()) {
                 loadBundleLegacy();
                 return;
             }
@@ -145,7 +145,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             String latestJSBundleFile = mCodePush.getJSBundleFileInternal(mCodePush.getAssetsBundleFileName());
 
             // #2) Update the locally stored JS bundle file path, only if CodePush is the main JS bundle
-            if (mCodePush.isMainJSBundle()) {
+            if (mCodePush.shouldSetJSBundleOnUpdate()) {
                 setJSBundle(instanceManager, latestJSBundleFile);
             }
 

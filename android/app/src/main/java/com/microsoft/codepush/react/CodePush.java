@@ -49,7 +49,7 @@ public class CodePush implements ReactPackage {
     private ReactInstanceHolder mReactInstanceHolder;
     private CodePush mCurrentInstance;
 
-    private boolean mIsMainJSBundle;
+    private boolean mShouldSetJSBundleOnUpdate;
 
     public CodePush(String deploymentKey, Context context) {
         this(deploymentKey, context, false);
@@ -395,22 +395,22 @@ public class CodePush implements ReactPackage {
         mSettingsManager.removeFailedUpdates();
     }
 
-    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder, boolean isMainJSBundle) {
+    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder, boolean shouldSetJSBundleOnUpdate) {
         mReactInstanceHolder = reactInstanceHolder;
-        mIsMainJSBundle = isMainJSBundle;
+        mShouldSetJSBundleOnUpdate = shouldSetJSBundleOnUpdate;
     }
 
     public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
         setReactInstanceHolder(reactInstanceHolder, false);
     }
 
-    public void setReactInstanceManager(final ReactInstanceManager reactInstanceManager, boolean isMainJSBundle) {
+    public void setReactInstanceManager(final ReactInstanceManager reactInstanceManager, boolean shouldSetJSBundleOnUpdate) {
         setReactInstanceHolder(new ReactInstanceHolder() {
             @Override
             public ReactInstanceManager getReactInstanceManager() {
                 return reactInstanceManager;
             }
-        }, isMainJSBundle);
+        }, shouldSetJSBundleOnUpdate);
     }
 
     public void setReactInstanceManager(ReactInstanceManager reactInstanceManager) {
@@ -424,8 +424,8 @@ public class CodePush implements ReactPackage {
         return mReactInstanceHolder.getReactInstanceManager();
     }
 
-    public boolean isMainJSBundle() {
-        return mIsMainJSBundle;
+    public boolean shouldSetJSBundleOnUpdate() {
+        return mShouldSetJSBundleOnUpdate;
     }
 
     @Override
