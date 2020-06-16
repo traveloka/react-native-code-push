@@ -47,8 +47,9 @@ public class CodePush implements ReactPackage {
     private static String mPublicKey;
 
     private ReactInstanceHolder mReactInstanceHolder;
-    private ReactInstanceManager mReactInstanceManager;
     private CodePush mCurrentInstance;
+
+    private boolean mShouldSetJSBundleOnUpdate;
 
     public CodePush(String deploymentKey, Context context) {
         this(deploymentKey, context, false);
@@ -394,22 +395,37 @@ public class CodePush implements ReactPackage {
         mSettingsManager.removeFailedUpdates();
     }
 
-    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
+    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder, boolean shouldSetJSBundleOnUpdate) {
         mReactInstanceHolder = reactInstanceHolder;
+        mShouldSetJSBundleOnUpdate = shouldSetJSBundleOnUpdate;
+    }
+
+    public void setReactInstanceHolder(ReactInstanceHolder reactInstanceHolder) {
+        setReactInstanceHolder(reactInstanceHolder, false);
+    }
+
+    public void setReactInstanceManager(final ReactInstanceManager reactInstanceManager, boolean shouldSetJSBundleOnUpdate) {
+        setReactInstanceHolder(new ReactInstanceHolder() {
+            @Override
+            public ReactInstanceManager getReactInstanceManager() {
+                return reactInstanceManager;
+            }
+        }, shouldSetJSBundleOnUpdate);
+    }
+
+    public void setReactInstanceManager(ReactInstanceManager reactInstanceManager) {
+        setReactInstanceManager(reactInstanceManager, false);
     }
 
     public ReactInstanceManager getReactInstanceManager() {
-        if (mReactInstanceManager != null) {
-            return  mReactInstanceManager;
-        }
         if (mReactInstanceHolder == null) {
             return null;
         }
         return mReactInstanceHolder.getReactInstanceManager();
     }
 
-    public void setReactInstanceManager(ReactInstanceManager reactInstanceManager) {
-        mReactInstanceManager = reactInstanceManager;
+    public boolean shouldSetJSBundleOnUpdate() {
+        return mShouldSetJSBundleOnUpdate;
     }
 
     @Override

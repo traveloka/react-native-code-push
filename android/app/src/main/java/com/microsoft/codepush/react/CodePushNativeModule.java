@@ -123,7 +123,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         clearLifecycleEventListener();
         try {
             mCodePush.clearDebugCacheIfNeeded(resolveInstanceManager());
-        } catch(Exception e) {
+        } catch (Exception e) {
             // If we got error in out reflection we should clear debug cache anyway.
             mCodePush.clearDebugCacheIfNeeded(null);
         }
@@ -136,17 +136,18 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            // Restart activity on immediate install mode to prevent crash
-            // We can't append vendor bundle here
-            if (installMode == CodePushInstallMode.IMMEDIATE.getValue()) {
+            // Only restart activity on immediate install mode when CodePush is not the main JS bundle
+            if (installMode == CodePushInstallMode.IMMEDIATE.getValue() && !mCodePush.shouldSetJSBundleOnUpdate()) {
                 loadBundleLegacy();
                 return;
             }
 
             String latestJSBundleFile = mCodePush.getJSBundleFileInternal(mCodePush.getAssetsBundleFileName());
 
-            // #2) Update the locally stored JS bundle file path
-            setJSBundle(instanceManager, latestJSBundleFile);
+            // #2) Update the locally stored JS bundle file path, only if CodePush is the main JS bundle
+            if (mCodePush.shouldSetJSBundleOnUpdate()) {
+                setJSBundle(instanceManager, latestJSBundleFile);
+            }
 
             // #3) Get the context creation method and fire it on the UI thread (which RN enforces)
             new Handler(Looper.getMainLooper()).post(new Runnable() {
@@ -182,7 +183,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
     private void resetReactRootViews(ReactInstanceManager instanceManager) throws NoSuchFieldException, IllegalAccessException {
         Field mAttachedRootViewsField = instanceManager.getClass().getDeclaredField("mAttachedRootViews");
         mAttachedRootViewsField.setAccessible(true);
-        List<ReactRootView> mAttachedRootViews = (List<ReactRootView>)mAttachedRootViewsField.get(instanceManager);
+        List<ReactRootView> mAttachedRootViews = (List<ReactRootView>) mAttachedRootViewsField.get(instanceManager);
         for (ReactRootView reactRootView : mAttachedRootViews) {
             reactRootView.removeAllViews();
             reactRootView.setId(View.NO_ID);
@@ -291,7 +292,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void getConfiguration(Promise promise) {
         try {
-            WritableMap configMap =  Arguments.createMap();
+            WritableMap configMap = Arguments.createMap();
             configMap.putString("appVersion", mCodePush.getAppVersion());
             configMap.putString("clientUniqueId", mClientUniqueId);
             configMap.putString("deploymentKey", mCodePush.getDeploymentKey());
@@ -303,7 +304,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             }
 
             promise.resolve(configMap);
-        } catch(CodePushUnknownException e) {
+        } catch (CodePushUnknownException e) {
             CodePushUtils.log(e);
             promise.reject(e);
         }
@@ -365,7 +366,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                     CodePushUtils.log(e.getMessage());
                     clearUpdates();
                     promise.resolve(null);
-                } catch(CodePushUnknownException e) {
+                } catch (CodePushUnknownException e) {
                     CodePushUtils.log(e);
                     promise.reject(e);
                 }
@@ -423,7 +424,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                     }
 
                     promise.resolve("");
-                } catch(CodePushUnknownException e) {
+                } catch (CodePushUnknownException e) {
                     CodePushUtils.log(e);
                     promise.reject(e);
                 }
@@ -450,11 +451,11 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                     }
 
                     if (installMode == CodePushInstallMode.ON_NEXT_RESUME.getValue() ||
-                        // We also add the resume listener if the installMode is IMMEDIATE, because
-                        // if the current activity is backgrounded, we want to reload the bundle when
-                        // it comes back into the foreground.
-                        installMode == CodePushInstallMode.IMMEDIATE.getValue() ||
-                        installMode == CodePushInstallMode.ON_NEXT_SUSPEND.getValue()) {
+                            // We also add the resume listener if the installMode is IMMEDIATE, because
+                            // if the current activity is backgrounded, we want to reload the bundle when
+                            // it comes back into the foreground.
+                            installMode == CodePushInstallMode.IMMEDIATE.getValue() ||
+                            installMode == CodePushInstallMode.ON_NEXT_SUSPEND.getValue()) {
 
                         // Store the minimum duration on the native module as an instance
                         // variable instead of relying on a closure below, so that any
@@ -510,7 +511,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                     }
 
                     promise.resolve("");
-                } catch(CodePushUnknownException e) {
+                } catch (CodePushUnknownException e) {
                     CodePushUtils.log(e);
                     promise.reject(e);
                 }
@@ -566,7 +567,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                     && packageHash.length() > 0
                     && packageHash.equals(mUpdateManager.getCurrentPackageHash());
             promise.resolve(isFirstRun);
-        } catch(CodePushUnknownException e) {
+        } catch (CodePushUnknownException e) {
             CodePushUtils.log(e);
             promise.reject(e);
         }
@@ -577,7 +578,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         try {
             mSettingsManager.removePendingUpdate();
             promise.resolve("");
-        } catch(CodePushUnknownException e) {
+        } catch (CodePushUnknownException e) {
             CodePushUtils.log(e);
             promise.reject(e);
         }
@@ -587,7 +588,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
     public void recordStatusReported(ReadableMap statusReport) {
         try {
             mTelemetryManager.recordStatusReported(statusReport);
-        } catch(CodePushUnknownException e) {
+        } catch (CodePushUnknownException e) {
             CodePushUtils.log(e);
         }
     }
@@ -604,7 +605,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             }
 
             promise.resolve(false);
-        } catch(CodePushUnknownException e) {
+        } catch (CodePushUnknownException e) {
             CodePushUtils.log(e);
             promise.reject(e);
         }
@@ -614,7 +615,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
     public void saveStatusReportForRetry(ReadableMap statusReport) {
         try {
             mTelemetryManager.saveStatusReportForRetry(statusReport);
-        } catch(CodePushUnknownException e) {
+        } catch (CodePushUnknownException e) {
             CodePushUtils.log(e);
         }
     }
@@ -631,7 +632,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                     throw new CodePushUnknownException("Unable to replace current bundle", e);
                 }
             }
-        } catch(CodePushUnknownException | CodePushMalformedDataException e) {
+        } catch (CodePushUnknownException | CodePushMalformedDataException e) {
             CodePushUtils.log(e);
         }
     }
