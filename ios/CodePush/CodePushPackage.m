@@ -1,5 +1,10 @@
 #import "CodePush.h"
+
+#if __has_include("SSZipArchive.h")
+#import "SSZipArchive.h"
+#else
 #import <SSZipArchive/SSZipArchive.h>
+#endif
 
 @implementation CodePushPackage {
     NSString *bundleName;
