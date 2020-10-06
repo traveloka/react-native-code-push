@@ -210,10 +210,11 @@ static NSString *const LatestRollbackCountKey = @"count";
         return binaryBundleURL;
     }
 
+    NSString *binaryDate = [CodePushUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL];
     NSString *packageDate = [currentPackageMetadata objectForKey:BinaryBundleDateKey];
     NSString *packageAppVersion = [currentPackageMetadata objectForKey:AppVersionKey];
 
-    if ([[CodePushUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL] isEqualToString:packageDate] && ([CodePush isUsingTestConfiguration] ||[binaryAppVersion isEqualToString:packageAppVersion])) {
+    if ([CodePushUpdateUtils isBinaryBundle:binaryBundleURL olderThanPackageDate:packageDate] && ([CodePush isUsingTestConfiguration] ||[binaryAppVersion isEqualToString:packageAppVersion])) {
         // Return package file because it is newer than the app store binary's JS bundle
         NSURL *packageUrl = [[NSURL alloc] initFileURLWithPath:packageFile];
         CPLog(logMessageFormat, packageUrl);
