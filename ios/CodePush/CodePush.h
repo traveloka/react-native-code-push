@@ -207,6 +207,7 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 + (NSString *)manifestFolderPrefix;
 + (NSString *)modifiedDateStringOfFileAtURL:(NSURL *)fileURL;
++ (BOOL)isBinaryBundle:(NSURL *)binaryBundleURL olderThanPackageDate:(NSString *)packageDateString;
 
 + (BOOL)isHashIgnoredFor:(NSString *) relativePath;
 

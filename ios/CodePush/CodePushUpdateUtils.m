@@ -261,6 +261,18 @@ NSString * const IgnoreCodePushMetadata = @".codepushrelease";
     }
 }
 
++ (BOOL)isBinaryBundle:(NSURL *)binaryBundleURL olderThanPackageDate:(NSString *)packageDateString
+{
+    NSDate *binaryDate = [[NSDate alloc] initWithTimeIntervalSince1970:[self modifiedDateStringOfFileAtURL:binaryBundleURL].doubleValue];
+    NSDate *packageDate = [[NSDate alloc] initWithTimeIntervalSince1970:packageDateString.doubleValue];
+    NSComparisonResult result = [binaryDate compare:packageDate];
+    
+    if (result == NSOrderedSame || result == NSOrderedDescending) {
+        return YES;
+    }
+    return NO;
+}
+
 + (BOOL)verifyFolderHash:(NSString *)finalUpdateFolder
                    expectedHash:(NSString *)expectedHash
                           error:(NSError **)error
