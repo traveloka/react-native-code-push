@@ -1020,7 +1020,7 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
         return [self topViewController:tabController.selectedViewController];
     }
     if (rootViewController.presentedViewController) {
-        return [self topViewController:rootViewController];
+        return [self topViewController:rootViewController.presentedViewController];
     }
     return rootViewController;
 }
