@@ -87,6 +87,12 @@ class RNAndroid extends Platform.Android implements RNPlatform {
             "apply from: \"../../node_modules/react-native/react.gradle\"",
             "apply from: \"../../node_modules/react-native/react.gradle\"\napply from: \"" + gradleContent + "\"");
 
+        // Add CodePush to android/settings.gradle
+        const settingsGradle = path.join(innerprojectDirectory, "android", "settings.gradle");
+        TestUtil.replaceString(settingsGradle,
+            "include ':app'",
+            "include ':app', ':react-native-code-push'\nproject(':react-native-code-push').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-code-push/android/app')");
+
         //// Set the app version to 1.0.0 instead of 1.0
         // Set the app version to 1.0.0 in android/app/build.gradle
         TestUtil.replaceString(buildGradle, "versionName \"1.0\"", "versionName \"1.0.0\"");
@@ -112,19 +118,30 @@ class RNAndroid extends Platform.Android implements RNPlatform {
         return TestUtil.getProcessOutput("adb install -r " + this.getBinaryPath(projectDirectory), { cwd: androidDirectory }).then(() => { return null; });
     }
 
+    /** 
+     * Build function of the test application, the command depends on the OS 
+    */
+    buildFunction(androidDirectory: string): Q.Promise<void> {
+        if (process.platform === "darwin") {
+            return TestUtil.getProcessOutput(`./gradlew assembleRelease --daemon`, { noLogStdOut: true, cwd: androidDirectory })
+                .then(() => { return null; });
+        } else {
+            return TestUtil.getProcessOutput(`gradlew assembleRelease --daemon`, { noLogStdOut: true, cwd: androidDirectory })
+                .then(() => { return null; });
+        }
+    }
+
     /**
      * Builds the binary of the project on this platform.
      */
     buildApp(projectDirectory: string): Q.Promise<void> {
         // In order to run on Android without the package manager, we must create a release APK and then sign it with the debug certificate.
         const androidDirectory: string = path.join(projectDirectory, TestConfig.TestAppName, "android");
-        const apkPath = this.getBinaryPath(projectDirectory);
-        if (process.platform === "darwin") {
-            return TestUtil.getProcessOutput(`./gradlew assembleRelease --daemon`, { cwd: androidDirectory })
-                .then(() => { return null; });
-        } else {
-            return TestUtil.getProcessOutput(`gradlew assembleRelease --daemon`, { cwd: androidDirectory })
-                .then(() => { return null; });
+        // If the build fails for the first time, try  rebuild app again
+        try {
+            return this.buildFunction(androidDirectory);
+        } catch {
+            return this.buildFunction(androidDirectory);
         }
     }
 }
@@ -216,7 +233,7 @@ class RNIOS extends Platform.IOS implements RNPlatform {
                 const hashWithParen = targetEmulator.match(hashRegEx)[0];
                 const hash = hashWithParen.substr(1, hashWithParen.length - 2);
                 return TestUtil.getProcessOutput("xcodebuild -workspace " + path.join(iOSProject, TestConfig.TestAppName) + ".xcworkspace -scheme " + TestConfig.TestAppName +
-                    " -configuration Release -destination \"platform=iOS Simulator,id=" + hash + "\" -derivedDataPath build", { cwd: iOSProject, maxBuffer: 1024 * 1000 * 10, noLogStdOut: true });
+                    " -configuration Release -destination \"platform=iOS Simulator,id=" + hash + "\" -derivedDataPath build EXCLUDED_ARCHS=arm64", { cwd: iOSProject, maxBuffer: 1024 * 1024 * 500, noLogStdOut: true });
             })
             .then<void>(
                 () => { return null; },
@@ -441,22 +458,29 @@ class RNProjectManager extends ProjectManager {
 
 const ScenarioCheckForUpdatePath = "scenarioCheckForUpdate.js";
 const ScenarioCheckForUpdateCustomKey = "scenarioCheckForUpdateCustomKey.js";
+const ScenarioDisallowRestartImmediate = "scenarioDisallowRestartImmediate.js";
+const ScenarioDisallowRestartOnResume = "scenarioDisallowRestartOnResume.js";
+const ScenarioDisallowRestartOnSuspend = "scenarioDisallowRestartOnSuspend.js";
 const ScenarioDownloadUpdate = "scenarioDownloadUpdate.js";
 const ScenarioInstall = "scenarioInstall.js";
 const ScenarioInstallOnResumeWithRevert = "scenarioInstallOnResumeWithRevert.js";
+const ScenarioInstallOnSuspendWithRevert = "scenarioInstallOnSuspendWithRevert.js";
 const ScenarioInstallOnRestartWithRevert = "scenarioInstallOnRestartWithRevert.js";
 const ScenarioInstallWithRevert = "scenarioInstallWithRevert.js";
 const ScenarioInstallRestart2x = "scenarioInstallRestart2x.js";
 const ScenarioSync1x = "scenarioSync.js";
 const ScenarioSyncResume = "scenarioSyncResume.js";
+const ScenarioSyncSuspend = "scenarioSyncSuspend.js";
 const ScenarioSyncResumeDelay = "scenarioSyncResumeDelay.js";
-const ScenarioSyncRestartDelay = "scenarioSyncResumeDelay.js";
+const ScenarioSyncRestartDelay = "scenarioSyncRestartDelay.js";
+const ScenarioSyncSuspendDelay = "scenarioSyncSuspendDelay.js";
 const ScenarioSync2x = "scenarioSync2x.js";
 const ScenarioRestart = "scenarioRestart.js";
 const ScenarioRestart2x = "scenarioRestart2x.js";
 const ScenarioSyncMandatoryDefault = "scenarioSyncMandatoryDefault.js";
 const ScenarioSyncMandatoryResume = "scenarioSyncMandatoryResume.js";
 const ScenarioSyncMandatoryRestart = "scenarioSyncMandatoryRestart.js";
+const ScenarioSyncMandatorySuspend = "scenarioSyncMandatorySuspend.js";
 
 const UpdateDeviceReady = "updateDeviceReady.js";
 const UpdateNotifyApplicationReady = "updateNotifyApplicationReady.js";
@@ -472,7 +496,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#window.codePush.checkForUpdate",
             () => {
                 TestBuilder.it("window.codePush.checkForUpdate.noUpdate", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         const noUpdateResponse = ServerUtil.createDefaultResponse();
                         noUpdateResponse.is_available = false;
                         noUpdateResponse.target_binary_range = "0.0.1";
@@ -480,7 +504,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
 
                         ServerUtil.testMessageCallback = (requestBody: any) => {
                             try {
-                                assert.equal(requestBody.message, ServerUtil.TestMessage.CHECK_UP_TO_DATE);
+                                assert.strictEqual(requestBody.message, ServerUtil.TestMessage.CHECK_UP_TO_DATE);
                                 done();
                             } catch (e) {
                                 done(e);
@@ -491,7 +515,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("window.codePush.checkForUpdate.sendsBinaryHash", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         if (!(<RNPlatform><any>targetPlatform).isDiffsSupported()) {
                             console.log(targetPlatform.getName() + " does not send a binary hash!");
                             done();
@@ -514,7 +538,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
 
                         ServerUtil.testMessageCallback = (requestBody: any) => {
                             try {
-                                assert.equal(requestBody.message, ServerUtil.TestMessage.CHECK_UP_TO_DATE);
+                                assert.strictEqual(requestBody.message, ServerUtil.TestMessage.CHECK_UP_TO_DATE);
                                 done();
                             } catch (e) {
                                 done(e);
@@ -525,7 +549,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("window.codePush.checkForUpdate.noUpdate.updateAppVersion", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         const updateAppVersionResponse = ServerUtil.createDefaultResponse();
                         updateAppVersionResponse.is_available = true;
                         updateAppVersionResponse.target_binary_range = "2.0.0";
@@ -535,7 +559,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
 
                         ServerUtil.testMessageCallback = (requestBody: any) => {
                             try {
-                                assert.equal(requestBody.message, ServerUtil.TestMessage.CHECK_UP_TO_DATE);
+                                assert.strictEqual(requestBody.message, ServerUtil.TestMessage.CHECK_UP_TO_DATE);
                                 done();
                             } catch (e) {
                                 done(e);
@@ -546,21 +570,21 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("window.codePush.checkForUpdate.update", true,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         const updateResponse = ServerUtil.createUpdateResponse();
                         ServerUtil.updateResponse = { update_info: updateResponse };
 
                         ServerUtil.testMessageCallback = (requestBody: any) => {
                             try {
-                                assert.equal(requestBody.message, ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE);
-                                assert.notEqual(requestBody.args[0], null);
+                                assert.strictEqual(requestBody.message, ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE);
+                                assert.notStrictEqual(requestBody.args[0], null);
                                 const remotePackage: any = requestBody.args[0];
-                                assert.equal(remotePackage.downloadUrl, updateResponse.download_url);
-                                assert.equal(remotePackage.isMandatory, updateResponse.is_mandatory);
-                                assert.equal(remotePackage.label, updateResponse.label);
-                                assert.equal(remotePackage.packageHash, updateResponse.package_hash);
-                                assert.equal(remotePackage.packageSize, updateResponse.package_size);
-                                assert.equal(remotePackage.deploymentKey, targetPlatform.getDefaultDeploymentKey());
+                                assert.strictEqual(remotePackage.downloadUrl, updateResponse.download_url);
+                                assert.strictEqual(remotePackage.isMandatory, updateResponse.is_mandatory);
+                                assert.strictEqual(remotePackage.label, updateResponse.label);
+                                assert.strictEqual(remotePackage.packageHash, updateResponse.package_hash);
+                                assert.strictEqual(remotePackage.packageSize, updateResponse.package_size);
+                                assert.strictEqual(remotePackage.deploymentKey, targetPlatform.getDefaultDeploymentKey());
                                 done();
                             } catch (e) {
                                 done(e);
@@ -569,8 +593,8 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
 
                         ServerUtil.updateCheckCallback = (request: any) => {
                             try {
-                                assert.notEqual(null, request);
-                                assert.equal(request.query.deployment_key, targetPlatform.getDefaultDeploymentKey());
+                                assert.notStrictEqual(null, request);
+                                assert.strictEqual(request.query.deployment_key, targetPlatform.getDefaultDeploymentKey());
                             } catch (e) {
                                 done(e);
                             }
@@ -580,12 +604,12 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("window.codePush.checkForUpdate.error", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = "invalid {{ json";
 
                         ServerUtil.testMessageCallback = (requestBody: any) => {
                             try {
-                                assert.equal(requestBody.message, ServerUtil.TestMessage.CHECK_ERROR);
+                                assert.strictEqual(requestBody.message, ServerUtil.TestMessage.CHECK_ERROR);
                                 done();
                             } catch (e) {
                                 done(e);
@@ -599,14 +623,14 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#window.codePush.checkForUpdate.customKey",
             () => {
                 TestBuilder.it("window.codePush.checkForUpdate.customKey.update", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         const updateResponse = ServerUtil.createUpdateResponse();
                         ServerUtil.updateResponse = { update_info: updateResponse };
 
                         ServerUtil.updateCheckCallback = (request: any) => {
                             try {
-                                assert.notEqual(null, request);
-                                assert.equal(request.query.deployment_key, "CUSTOM-DEPLOYMENT-KEY");
+                                assert.notStrictEqual(null, request);
+                                assert.strictEqual(request.query.deployment_key, "CUSTOM-DEPLOYMENT-KEY");
                                 done();
                             } catch (e) {
                                 done(e);
@@ -620,7 +644,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#remotePackage.download",
             () => {
                 TestBuilder.it("remotePackage.download.success", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* pass the path to any file for download (here, index.js) to make sure the download completed callback is invoked */
@@ -635,7 +659,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("remotePackage.download.error", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* pass an invalid update url */
@@ -654,7 +678,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
             () => {
                 // // CHANGE THIS TEST CASE, accepts both a jsbundle and a zip
                 // TestBuilder.it("localPackage.install.unzip.error",
-                //     (done: MochaDone) => {
+                //     (done: Mocha.Done) => {
                 //         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                 //         /* pass an invalid zip file, here, index.js */
@@ -672,7 +696,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                 //     }, false),
 
                 TestBuilder.it("localPackage.install.handlesDiff.againstBinary", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* create an update */
@@ -695,7 +719,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("localPackage.install.immediately", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* create an update */
@@ -721,7 +745,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#localPackage.install.revert",
             () => {
                 TestBuilder.it("localPackage.install.revert.dorevert", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* create an update */
@@ -752,7 +776,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("localPackage.install.revert.norevert", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* create an update */
@@ -772,68 +796,124 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             })
                             .done(() => { done(); }, (e) => { done(e); });
                     });
-            }, ScenarioInstallWithRevert),
+            }, ScenarioInstallWithRevert);
 
-            TestBuilder.describe("#localPackage.installOnNextResume",
-                () => {
-                    TestBuilder.it("localPackage.installOnNextResume.dorevert", true,
-                        (done: MochaDone) => {
-                            ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+        TestBuilder.describe("#localPackage.installOnNextResume",
+            () => {
+                TestBuilder.it("localPackage.installOnNextResume.dorevert", true,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
-                            setupUpdateScenario(projectManager, targetPlatform, UpdateDeviceReady, "Update 1")
-                                .then<void>((updatePath: string) => {
-                                    ServerUtil.updatePackagePath = updatePath;
-                                    projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
-                                    return ServerUtil.expectTestMessages([
-                                        ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
-                                        ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
-                                        ServerUtil.TestMessage.UPDATE_INSTALLED]);
-                                })
-                                .then<void>(() => {
-                                    /* resume the application */
-                                    targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
-                                    return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
-                                })
-                                .then<void>(() => {
-                                    /* restart to revert it */
-                                    targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
-                                    return ServerUtil.expectTestMessages([ServerUtil.TestMessage.UPDATE_FAILED_PREVIOUSLY]);
-                                })
-                                .done(() => { done(); }, (e) => { done(e); });
-                        });
+                        setupUpdateScenario(projectManager, targetPlatform, UpdateDeviceReady, "Update 1")
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED]);
+                            })
+                            .then<void>(() => {
+                                /* resume the application */
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .then<void>(() => {
+                                /* restart to revert it */
+                                targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.UPDATE_FAILED_PREVIOUSLY]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
 
-                    TestBuilder.it("localPackage.installOnNextResume.norevert", false,
-                        (done: MochaDone) => {
-                            ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+                TestBuilder.it("localPackage.installOnNextResume.norevert", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
-                            /* create an update */
-                            setupUpdateScenario(projectManager, targetPlatform, UpdateNotifyApplicationReady, "Update 1 (good update)")
-                                .then<void>((updatePath: string) => {
-                                    ServerUtil.updatePackagePath = updatePath;
-                                    projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
-                                    return ServerUtil.expectTestMessages([
-                                        ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
-                                        ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
-                                        ServerUtil.TestMessage.UPDATE_INSTALLED]);
-                                })
-                                .then<void>(() => {
-                                    /* resume the application */
-                                    targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
-                                    return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
-                                })
-                                .then<void>(() => {
-                                    /* restart to make sure it did not revert */
-                                    targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
-                                    return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
-                                })
-                                .done(() => { done(); }, (e) => { done(e); });
-                        });
-                }, ScenarioInstallOnResumeWithRevert);
+                        /* create an update */
+                        setupUpdateScenario(projectManager, targetPlatform, UpdateNotifyApplicationReady, "Update 1 (good update)")
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED]);
+                            })
+                            .then<void>(() => {
+                                /* resume the application */
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .then<void>(() => {
+                                /* restart to make sure it did not revert */
+                                targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+            }, ScenarioInstallOnResumeWithRevert);
+
+        TestBuilder.describe("#localPackage.installOnNextSuspend",
+            () => {
+                TestBuilder.it("localPackage.installOnNextSuspend.dorevert", true,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+
+                        setupUpdateScenario(projectManager, targetPlatform, UpdateDeviceReady, "Update 1")
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED]);
+                            })
+                            .then<void>(() => {
+                                /* resume the application */
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .then<void>(() => {
+                                /* restart to revert it */
+                                targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.UPDATE_FAILED_PREVIOUSLY]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+
+                TestBuilder.it("localPackage.installOnNextSuspend.norevert", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+
+                        /* create an update */
+                        setupUpdateScenario(projectManager, targetPlatform, UpdateNotifyApplicationReady, "Update 1 (good update)")
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED]);
+                            })
+                            .then<void>(() => {
+                                /* resume the application */
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .then<void>(() => {
+                                /* restart to make sure it did not revert */
+                                targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+            }, ScenarioInstallOnSuspendWithRevert);
 
         TestBuilder.describe("localPackage installOnNextRestart",
             () => {
                 TestBuilder.it("localPackage.installOnNextRestart.dorevert", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         setupUpdateScenario(projectManager, targetPlatform, UpdateDeviceReady, "Update 1")
@@ -861,7 +941,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("localPackage.installOnNextRestart.norevert", true,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* create an update */
@@ -888,7 +968,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("localPackage.installOnNextRestart.revertToPrevious", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         /* create an update */
@@ -940,7 +1020,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#codePush.restartApplication",
             () => {
                 TestBuilder.it("codePush.restartApplication.checkPackages", true,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         setupUpdateScenario(projectManager, targetPlatform, UpdateNotifyApplicationReady, "Update 1")
@@ -967,7 +1047,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#codePush.restartApplication.2x",
             () => {
                 TestBuilder.it("blocks when a restart is in progress and doesn't crash if there is a pending package", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioInstallRestart2x)
                             .then(setupUpdateScenario.bind(this, projectManager, targetPlatform, UpdateDeviceReady, "Update 1"))
@@ -984,7 +1064,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     });
 
                 TestBuilder.it("doesn't block when the restart is ignored", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioRestart2x)
                             .then(setupUpdateScenario.bind(this, projectManager, targetPlatform, UpdateDeviceReady, "Update 1"))
@@ -1009,7 +1089,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     () => {
                         // Tests where sync is called just once
                         TestBuilder.it("window.codePush.sync.noupdate", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 const noUpdateResponse = ServerUtil.createDefaultResponse();
                                 noUpdateResponse.is_available = false;
                                 noUpdateResponse.target_binary_range = "0.0.1";
@@ -1025,7 +1105,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.checkerror", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 ServerUtil.updateResponse = "invalid {{ json";
 
                                 Q({})
@@ -1038,7 +1118,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.downloaderror", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 const invalidUrlResponse = ServerUtil.createUpdateResponse();
                                 invalidUrlResponse.download_url = "http://" + path.join(TestConfig.templatePath, "invalid_path.zip");
                                 ServerUtil.updateResponse = { update_info: invalidUrlResponse };
@@ -1053,7 +1133,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.dorevert", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                                 /* create an update */
@@ -1072,7 +1152,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.update", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                                 /* create an update */
@@ -1104,7 +1184,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                     () => {
                         // Tests where sync is called again before the first sync finishes
                         TestBuilder.it("window.codePush.sync.2x.noupdate", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 const noUpdateResponse = ServerUtil.createDefaultResponse();
                                 noUpdateResponse.is_available = false;
                                 noUpdateResponse.target_binary_range = "0.0.1";
@@ -1121,7 +1201,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.2x.checkerror", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 ServerUtil.updateResponse = "invalid {{ json";
 
                                 Q({})
@@ -1135,7 +1215,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.2x.downloaderror", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 const invalidUrlResponse = ServerUtil.createUpdateResponse();
                                 invalidUrlResponse.download_url = "http://" + path.join(TestConfig.templatePath, "invalid_path.zip");
                                 ServerUtil.updateResponse = { update_info: invalidUrlResponse };
@@ -1151,7 +1231,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.2x.dorevert", false,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                                 /* create an update */
@@ -1173,7 +1253,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             });
 
                         TestBuilder.it("window.codePush.sync.2x.update", true,
-                            (done: MochaDone) => {
+                            (done: Mocha.Done) => {
                                 ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                                 /* create an update */
@@ -1206,8 +1286,8 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
 
         TestBuilder.describe("#window.codePush.sync minimum background duration tests",
             () => {
-                TestBuilder.it("defaults to no minimum", false,
-                    (done: MochaDone) => {
+                TestBuilder.it("defaults to no minimum for Resume mode", false,
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncResume).then<string>(() => {
@@ -1232,8 +1312,8 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             .done(() => { done(); }, (e) => { done(e); });
                     });
 
-                TestBuilder.it("min background duration 5s", false,
-                    (done: MochaDone) => {
+                TestBuilder.it("min background duration 5s for Resume mode", false,
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncResumeDelay).then<string>(() => {
@@ -1261,8 +1341,63 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             .done(() => { done(); }, (e) => { done(e); });
                     });
 
+                TestBuilder.it("defaults to no minimum for Suspend mode", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+
+                        setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncSuspend).then<string>(() => {
+                            return setupUpdateScenario(projectManager, targetPlatform, UpdateSync, "Update 1 (good update)");
+                        })
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    new ServerUtil.AppMessage(ServerUtil.TestMessage.SYNC_STATUS, [ServerUtil.TestMessage.SYNC_UPDATE_INSTALLED])]);
+                            })
+                            .then<void>(() => {
+                                const noUpdateResponse = ServerUtil.createDefaultResponse();
+                                noUpdateResponse.is_available = false;
+                                noUpdateResponse.target_binary_range = "0.0.1";
+                                ServerUtil.updateResponse = { update_info: noUpdateResponse };
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE,
+                                    new ServerUtil.AppMessage(ServerUtil.TestMessage.SYNC_STATUS, [ServerUtil.TestMessage.SYNC_UP_TO_DATE])]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+
+                TestBuilder.it("min background duration 5s for Suspend mode", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+
+                        setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncSuspendDelay).then<string>(() => {
+                            return setupUpdateScenario(projectManager, targetPlatform, UpdateSync, "Update 1 (good update)");
+                        })
+                            .then((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    new ServerUtil.AppMessage(ServerUtil.TestMessage.SYNC_STATUS, [ServerUtil.TestMessage.SYNC_UPDATE_INSTALLED])]);
+                            })
+                            .then(() => {
+                                const noUpdateResponse = ServerUtil.createDefaultResponse();
+                                noUpdateResponse.is_available = false;
+                                noUpdateResponse.target_binary_range = "0.0.1";
+                                ServerUtil.updateResponse = { update_info: noUpdateResponse };
+                                return targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace, 3 * 1000);
+                            })
+                            .then(() => {
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace, 6 * 1000);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE,
+                                    new ServerUtil.AppMessage(ServerUtil.TestMessage.SYNC_STATUS, [ServerUtil.TestMessage.SYNC_UP_TO_DATE])]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+
                 TestBuilder.it("has no effect on restart", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncRestartDelay).then<string>(() => {
@@ -1291,7 +1426,7 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
         TestBuilder.describe("#window.codePush.sync mandatory install mode tests",
             () => {
                 TestBuilder.it("defaults to IMMEDIATE", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(true, targetPlatform) };
 
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncMandatoryDefault).then<string>(() => {
@@ -1305,8 +1440,8 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             .done(() => { done(); }, (e) => { done(e); });
                     });
 
-                TestBuilder.it("works correctly when update is mandatory and mandatory install mode is specified", false,
-                    (done: MochaDone) => {
+                TestBuilder.it("works correctly when update is mandatory and mandatory install mode is Resume", false,
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(true, targetPlatform) };
 
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncMandatoryResume).then<string>(() => {
@@ -1330,8 +1465,33 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             .done(() => { done(); }, (e) => { done(e); });
                     });
 
+                TestBuilder.it("works correctly when update is mandatory and mandatory install mode is Suspend", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(true, targetPlatform) };
+
+                        setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncMandatorySuspend).then<string>(() => {
+                            return setupUpdateScenario(projectManager, targetPlatform, UpdateDeviceReady, "Update 1 (good update)");
+                        })
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    new ServerUtil.AppMessage(ServerUtil.TestMessage.SYNC_STATUS, [ServerUtil.TestMessage.SYNC_UPDATE_INSTALLED])]);
+                            })
+                            .then<void>(() => {
+                                const noUpdateResponse = ServerUtil.createDefaultResponse();
+                                noUpdateResponse.is_available = false;
+                                noUpdateResponse.target_binary_range = "0.0.1";
+                                ServerUtil.updateResponse = { update_info: noUpdateResponse };
+                                targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+
                 TestBuilder.it("has no effect on updates that are not mandatory", false,
-                    (done: MochaDone) => {
+                    (done: Mocha.Done) => {
                         ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
 
                         setupTestRunScenario(projectManager, targetPlatform, ScenarioSyncMandatoryRestart).then<string>(() => {
@@ -1340,6 +1500,79 @@ PluginTestingFramework.initializeTests(new RNProjectManager(), supportedTargetPl
                             .then<void>((updatePath: string) => {
                                 ServerUtil.updatePackagePath = updatePath;
                                 projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+            });
+
+        TestBuilder.describe("#codePush.disallowRestart",
+            () => {
+                TestBuilder.it("disallowRestart with IMMEDIATE install mode", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+                        setupTestRunScenario(projectManager, targetPlatform, ScenarioDisallowRestartImmediate)
+                            .then(setupUpdateScenario.bind(this, projectManager, targetPlatform, UpdateNotifyApplicationReady, "Update 1"))
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED,
+                                    ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE
+                                ]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+
+                TestBuilder.it("disallowRestart with ON_NEXT_RESUME install mode", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+                        setupTestRunScenario(projectManager, targetPlatform, ScenarioDisallowRestartOnResume)
+                            .then(setupUpdateScenario.bind(this, projectManager, targetPlatform, UpdateDeviceReady, "Update 1"))
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED
+                                ]);
+                            })
+                            .then<void>(() => {
+                                /* resume the application */
+                                return targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                            })
+                            .then<void>(() => {
+                                /* restart the application */
+                                targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
+                                return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
+                            })
+                            .done(() => { done(); }, (e) => { done(e); });
+                    });
+
+                TestBuilder.it("disallowRestart with ON_NEXT_SUSPEND install mode", false,
+                    (done: Mocha.Done) => {
+                        ServerUtil.updateResponse = { update_info: ServerUtil.createUpdateResponse(false, targetPlatform) };
+                        setupTestRunScenario(projectManager, targetPlatform, ScenarioDisallowRestartOnSuspend)
+                            .then(setupUpdateScenario.bind(this, projectManager, targetPlatform, UpdateDeviceReady, "Update 1"))
+                            .then<void>((updatePath: string) => {
+                                ServerUtil.updatePackagePath = updatePath;
+                                projectManager.runApplication(TestConfig.testRunDirectory, targetPlatform);
+                                return ServerUtil.expectTestMessages([
+                                    ServerUtil.TestMessage.CHECK_UPDATE_AVAILABLE,
+                                    ServerUtil.TestMessage.DOWNLOAD_SUCCEEDED,
+                                    ServerUtil.TestMessage.UPDATE_INSTALLED
+                                ]);
+                            })
+                            .then<void>(() => {
+                                /* resume the application */
+                                return targetPlatform.getEmulatorManager().resumeApplication(TestConfig.TestNamespace);
+                            })
+                            .then<void>(() => {
+                                /* restart the application */
+                                targetPlatform.getEmulatorManager().restartApplication(TestConfig.TestNamespace);
                                 return ServerUtil.expectTestMessages([ServerUtil.TestMessage.DEVICE_READY_AFTER_UPDATE]);
                             })
                             .done(() => { done(); }, (e) => { done(e); });

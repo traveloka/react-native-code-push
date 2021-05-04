@@ -10,7 +10,7 @@ Requirements:
 Usage: node create-app.js <appName> <reactNativeVersion> <reactNativeCodePushVersion>
     1. node create-app.js 
     2. node create-app.js myapp
-    3. node create-app.js myapp react-native@0.61.5 react-native-code-push@6.0.0 
+    3. node create-app.js myapp react-native@0.62 react-native-code-push@6.1.0 
     4. node create-app.js myapp react-native@latest Microsoft/react-native-code-push
 
 Parameters:
@@ -48,6 +48,17 @@ const reactNativeVersion = args[1] || `react-native@${execCommand('npm view reac
 const reactNativeVersionIsLowerThanV049 = isReactNativeVersionLowerThan(49);
 const reactNativeCodePushVersion = args[2] || `react-native-code-push@${execCommand('npm view react-native-code-push version')}`.trim();
 
+if (!isReactNativeVersionLowerThan(60) && process.platform === "darwin") {
+    try {
+        console.log("Verify that CocoaPods installed");
+        execCommand("pod --version");
+        console.log("CocoaPods has installed");
+    } catch {
+        console.error(`'CocoaPods' are required to run the script, you can install it with\n'sudo gem install cocoapods'\ncommand`);
+        process.exit();
+    }
+}
+
 console.log(`App name: ${appName}`);
 console.log(`React Native version: ${reactNativeVersion}`);
 console.log(`React Native Module for CodePush version: ${reactNativeCodePushVersion} \n`);
@@ -72,13 +83,18 @@ linkCodePush(androidStagingDeploymentKey, iosStagingDeploymentKey);
 function createCodePushApp(name, os) {
     try {
         console.log(`Creating CodePush app "${name}" to release updates for ${os}...`);
-        const appResult = execCommand(`appcenter apps create -d ${name} -n ${name} -o ${os} -p React-Native --output json`);
-        const app = JSON.parse(appResult);
-        owner = app.owner.name;
-        console.log(`App "${name}" has been created \n`);
+        try {
+            const appResult = execCommand(`appcenter apps create -d ${name} -n ${name} -o ${os} -p React-Native --output json`);
+            const app = JSON.parse(appResult);
+            owner = app.owner.name;
+            console.log(`App "${name}" has been created \n`);
+        } catch(e) {
+            console.log("Error: ", e);
+            console.log(`Please check that you haven't application with "${name}" name on portal`);
+        }
         execCommand(`appcenter codepush deployment add -a ${owner}/${name} Staging`);
     } catch (e) {
-        console.log(`App "${name}" already exists \n`);
+        console.log("Error", e);
     }
     const deploymentKeysResult = execCommand(`appcenter codepush deployment list -a ${owner}/${name} -k --output json`);
     const deploymentKeys = JSON.parse(deploymentKeysResult);
@@ -225,6 +241,7 @@ function isReactNativeVersionLowerThan(version) {
 // Configuring android applications for react-native version higher than 0.60
 function androidSetup() {
     const buildGradlePath = path.join('android', 'app', 'build.gradle');
+    const settingsGradlePath = path.join('android', 'settings.gradle');
     const mainApplicationPath = path.join('android', 'app', 'src', 'main', 'java', 'com', appName, 'MainApplication.java');
     const stringsResourcesPath = path.join('android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
 
@@ -240,6 +257,13 @@ function androidSetup() {
     buildGradleContents = buildGradleContents.replace(reactGradleLink,
         `${reactGradleLink}${codePushGradleLink}`);
     fs.writeFileSync(buildGradlePath, buildGradleContents);
+
+    let settingsGradleContents = fs.readFileSync(settingsGradlePath, "utf8");
+    const settingsGradleInclude = "include \':app\'";
+    const codePushProjectImport= `':react-native-code-push'\nproject(':react-native-code-push').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-code-push/android/app')`;
+    settingsGradleContents = settingsGradleContents.replace(settingsGradleInclude,
+        `${settingsGradleInclude}, ${codePushProjectImport}`);
+    fs.writeFileSync(settingsGradlePath, settingsGradleContents);
 
     const getJSBundleFileOverride = `
     @Override
