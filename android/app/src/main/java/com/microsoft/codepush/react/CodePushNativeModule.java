@@ -235,7 +235,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
 
         this._restartInProgress = true;
         if (!onlyIfUpdateIsPending || mSettingsManager.isPendingUpdate(null)) {
-            loadBundle();
+            loadBundle(CodePushInstallMode.IMMEDIATE.getValue());
             CodePushUtils.log("Restarting app");
             return;
         }
@@ -550,7 +550,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
                                     @Override
                                     public void run() {
                                         CodePushUtils.log("Loading bundle on suspend");
-                                        loadBundle(installMode);
+                                        restartAppInternal(false);
                                     }
                                 };
 
