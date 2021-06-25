@@ -107,7 +107,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSDictionary *config = @{
-          @"deploymentKey": [[NSBundle mainBundle] objectForInfoDictionaryKey:CODEPUSH_KEY]
+          @"deploymentKey": CODEPUSH_KEY
         };
         sharedInstance = [[CodePush alloc] initWithConfig:config];
     });
